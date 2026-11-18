@@ -1,0 +1,30 @@
+{
+  "name": "yuehao",
+  "version": "1.0.0",
+  "private": true,
+  "description": "約好 Yuehao — 多租戶線上預約 SaaS",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "seed": "node --experimental-strip-types --no-warnings scripts/seed.ts",
+    "test": "node --experimental-strip-types --no-warnings --test src/lib/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "dependencies": {
+    "next": "^16.4.6",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.5",
+    "@types/node": "^22.20.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "tailwindcss": "^4.3.5",
+    "typescript": "^7.0.2"
+  }
+}
