@@ -19,9 +19,14 @@ export default async function LoginPage() {
           <input id="email" name="email" type="email" autoComplete="email" required className="input" />
         </div>
         <div>
-          <label className="label" htmlFor="password">
-            密碼
-          </label>
+          <div className="flex items-baseline justify-between">
+            <label className="label" htmlFor="password">
+              密碼
+            </label>
+            <Link href="/forgot" className="text-sm text-muted hover:text-brand">
+              忘記密碼？
+            </Link>
+          </div>
           <input id="password" name="password" type="password" autoComplete="current-password" required className="input" />
         </div>
       </ActionForm>

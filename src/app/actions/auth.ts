@@ -3,12 +3,16 @@
 import { redirect } from "next/navigation";
 import { get, run, tx, type User } from "@/lib/db";
 import { businessOf, createSession, currentUser, destroySession, hashPassword, verifyPassword } from "@/lib/auth";
-import { clientIp, hit } from "@/lib/ratelimit";
+import { clientIp, hit, hitByIp } from "@/lib/ratelimit";
 import { CATEGORIES, CATEGORY_TEMPLATES } from "@/lib/plans";
 import { seedDefaultHours } from "@/lib/booking";
 import { ensureDemo } from "@/lib/seed";
+import crypto from "node:crypto";
+import { sendMail } from "@/lib/mail";
+import { baseUrl, requireBusiness } from "@/lib/auth";
 import type { FormState } from "@/components/form";
 
+const DUMMY_HASH = hashPassword("not-a-real-password");
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$/;
 const RESERVED = new Set(["demo", "admin", "api", "app", "www", "dashboard", "login", "signup", "booking", "yuehao", "support", "help"]);
@@ -18,7 +22,7 @@ function str(data: FormData, key: string, max = 200): string {
 }
 
 export async function signup(_: FormState, data: FormData): Promise<FormState> {
-  if (!hit(`signup:${await clientIp()}`, 8, 3600_000)) return { error: "嘗試次數過多，請稍後再試" };
+  if (!(await hitByIp("signup", 8, 3600_000))) return { error: "嘗試次數過多，請稍後再試" };
   const name = str(data, "name", 40);
   const email = str(data, "email", 120).toLowerCase();
   const password = String(data.get("password") ?? "");
@@ -27,7 +31,12 @@ export async function signup(_: FormState, data: FormData): Promise<FormState> {
   if (password.length < 8) return { error: "密碼至少需要 8 個字元" };
   if (get("SELECT 1 AS x FROM users WHERE email = ?", email)) return { error: "這個 Email 已經註冊過，請直接登入" };
 
-  const { id } = run("INSERT INTO users (email, password_hash, name) VALUES (?, ?, ?)", email, hashPassword(password), name);
+  let id: number;
+  try {
+    id = run("INSERT INTO users (email, password_hash, name) VALUES (?, ?, ?)", email, hashPassword(password), name).id;
+  } catch {
+    return { error: "這個 Email 已經註冊過，請直接登入" }; // 重複送出時撞到 UNIQUE
+  }
   await createSession(id);
   redirect("/onboarding");
 }
@@ -35,11 +44,14 @@ export async function signup(_: FormState, data: FormData): Promise<FormState> {
 export async function login(_: FormState, data: FormData): Promise<FormState> {
   const email = str(data, "email", 120).toLowerCase();
   const password = String(data.get("password") ?? "");
-  const ip = await clientIp();
-  if (!hit(`login:${ip}`, 20, 600_000) || !hit(`login:${email}`, 8, 600_000)) return { error: "嘗試次數過多，請 10 分鐘後再試" };
+  // 以「IP＋帳號」計次：擋暴力猜密碼，但不讓外人用錯誤嘗試把別人的帳號鎖住
+  const ip = (await clientIp()) ?? "unknown";
+  if (!(await hitByIp("login", 30, 600_000)) || !hit(`login:${ip}:${email}`, 8, 600_000)) return { error: "嘗試次數過多，請 10 分鐘後再試" };
 
   const user = get<User>("SELECT * FROM users WHERE email = ?", email);
-  if (!user || !verifyPassword(password, user.password_hash)) return { error: "Email 或密碼不正確" };
+  // 帳號不存在時也做一次雜湊比對，避免從回應時間猜出哪些 Email 有註冊
+  const valid = verifyPassword(password, user?.password_hash ?? DUMMY_HASH);
+  if (!user || !valid) return { error: "Email 或密碼不正確" };
   await createSession(user.id);
   redirect(businessOf(user.id) ? "/dashboard" : "/onboarding");
 }
@@ -70,13 +82,70 @@ export async function createBusiness(_: FormState, data: FormData): Promise<Form
   if (!(category in CATEGORIES)) return { error: "請選擇產業類別" };
   if (get("SELECT 1 AS x FROM businesses WHERE slug = ?", slug)) return { error: "這個網址代稱已被使用，請換一個" };
 
-  tx(() => {
+  try {
+    tx(() => {
     const bizId = run("INSERT INTO businesses (owner_id, name, slug, category) VALUES (?, ?, ?, ?)", user.id, name, slug, category).id;
     seedDefaultHours(bizId);
     for (const s of CATEGORY_TEMPLATES[category] ?? CATEGORY_TEMPLATES.other) {
       run("INSERT INTO services (business_id, name, duration_min, price, description) VALUES (?, ?, ?, ?, ?)", bizId, s.name, s.duration, s.price, s.description);
     }
     run("INSERT INTO staff (business_id, name, title) VALUES (?, ?, ?)", bizId, user.name, "");
-  });
+    });
+  } catch {
+    if (businessOf(user.id)) redirect("/dashboard");
+    return { error: "這個網址代稱剛剛被使用了，請換一個" };
+  }
   redirect("/dashboard?welcome=1");
+}
+
+const sha = (t: string) => crypto.createHash("sha256").update(t).digest("hex");
+
+export async function requestPasswordReset(_: FormState, data: FormData): Promise<FormState> {
+  const email = str(data, "email", 120).toLowerCase();
+  if (!EMAIL_RE.test(email)) return { error: "Email 格式不正確" };
+  if (!(await hitByIp("reset", 5, 3600_000)) || !hit(`reset:${email}`, 3, 3600_000)) return { error: "嘗試次數過多，請稍後再試" };
+
+  const user = get<User>("SELECT * FROM users WHERE email = ?", email);
+  if (user) {
+    const token = crypto.randomBytes(32).toString("base64url");
+    run("DELETE FROM password_resets WHERE user_id = ? OR expires_at < ?", user.id, Date.now());
+    run("INSERT INTO password_resets (token_hash, user_id, expires_at) VALUES (?, ?, ?)", sha(token), user.id, Date.now() + 3600_000);
+    await sendMail({
+      to: user.email,
+      subject: "重設你的約好密碼",
+      text: `${user.name} 你好，\n\n請在 1 小時內點擊下方連結設定新密碼：\n${await baseUrl()}/reset/${token}\n\n如果不是你本人申請，請忽略這封信，密碼不會變更。`,
+    });
+  }
+  // 不論帳號是否存在都回同樣訊息
+  return { ok: "如果這個 Email 有註冊，重設密碼的連結已經寄出，請在 1 小時內使用。" };
+}
+
+export async function resetPassword(_: FormState, data: FormData): Promise<FormState> {
+  const token = str(data, "token", 100);
+  const password = String(data.get("password") ?? "");
+  if (password.length < 8) return { error: "密碼至少需要 8 個字元" };
+  const row = get<{ user_id: number }>("SELECT user_id FROM password_resets WHERE token_hash = ? AND expires_at > ?", sha(token), Date.now());
+  if (!row) return { error: "連結已失效或已使用過，請重新申請" };
+
+  tx(() => {
+    run("UPDATE users SET password_hash = ? WHERE id = ?", hashPassword(password), row.user_id);
+    run("DELETE FROM password_resets WHERE user_id = ?", row.user_id);
+    run("DELETE FROM sessions WHERE user_id = ?", row.user_id); // 登出所有裝置
+  });
+  await createSession(row.user_id);
+  redirect(businessOf(row.user_id) ? "/dashboard" : "/onboarding");
+}
+
+export async function changePassword(_: FormState, data: FormData): Promise<FormState> {
+  const { user } = await requireBusiness();
+  const current = String(data.get("current") ?? "");
+  const next = String(data.get("password") ?? "");
+  if (!verifyPassword(current, user.password_hash)) return { error: "目前的密碼不正確" };
+  if (next.length < 8) return { error: "新密碼至少需要 8 個字元" };
+  tx(() => {
+    run("UPDATE users SET password_hash = ? WHERE id = ?", hashPassword(next), user.id);
+    run("DELETE FROM sessions WHERE user_id = ?", user.id);
+  });
+  await createSession(user.id);
+  return { ok: "密碼已更新，其他裝置已登出" };
 }

@@ -23,7 +23,7 @@ const FAQ = [
 function HeroPreview() {
   const times = ["10:00", "10:30", "11:00", "13:30", "14:00", "15:30", "16:00", "17:30"];
   return (
-    <div className="relative mx-auto w-full max-w-sm">
+    <div className="relative mx-auto w-full max-w-sm" aria-hidden="true">
       <div className="absolute -right-3 -top-3 hidden rounded-xl bg-sun px-3 py-2 text-xs font-semibold text-ink shadow-lg sm:block">
         新預約・週六 14:00
       </div>
@@ -36,7 +36,7 @@ function HeroPreview() {
         </div>
         <div className="mt-4 grid grid-cols-7 gap-1 text-center text-xs">
           {["三", "四", "五", "六", "日", "一", "二"].map((d, i) => (
-            <div key={d} className={`rounded-lg py-1.5 ${i === 3 ? "bg-ink text-white" : i === 5 ? "text-muted/40" : "text-ink"}`}>
+            <div key={d} className={`rounded-lg py-1.5 ${i === 3 ? "bg-ink text-white" : i === 5 ? "text-muted line-through" : "text-ink"}`}>
               <div className="text-[10px] opacity-70">{d}</div>
               <div className="tnum font-semibold">{18 + i}</div>
             </div>
@@ -125,7 +125,7 @@ export default function Home() {
               ["記在腦袋裡的行程", "紙本、LINE 記事本、備忘錄各記一半。所有預約集中在一個行事曆。"],
             ].map(([t, d]) => (
               <div key={t}>
-                <h3 className="font-bold">{t}</h3>
+                <h2 className="font-bold">{t}</h2>
                 <p className="mt-2 text-sm text-muted">{d}</p>
               </div>
             ))}

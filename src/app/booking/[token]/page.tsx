@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
+import { notifyCancelled } from "@/lib/notify";
 import { ActionForm, type FormState } from "@/components/form";
 import { StatusBadge } from "@/components/brand";
 import { get, run, BOOKING_JOIN, type BookingRow, type Business } from "@/lib/db";
@@ -24,7 +26,10 @@ async function cancel(_: FormState, data: FormData): Promise<FormState> {
   const found = load(token);
   if (!found) return { error: "找不到這筆預約" };
   if (found.booking.status !== "confirmed" || !found.upcoming) return { error: "這筆預約已無法線上取消，請直接聯繫店家" };
-  run("UPDATE bookings SET status = 'cancelled' WHERE id = ?", found.booking.id);
+  const bookingId = found.booking.id;
+  if (run("UPDATE bookings SET status = 'cancelled' WHERE id = ? AND status = 'confirmed'", bookingId).changes) {
+    after(() => notifyCancelled(bookingId, "customer").catch((e) => console.error("notify failed", e)));
+  }
   revalidatePath(`/booking/${token}`);
   return { ok: "" };
 }

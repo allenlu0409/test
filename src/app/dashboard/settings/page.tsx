@@ -3,6 +3,8 @@ import { ActionForm, CopyButton } from "@/components/form";
 import { baseUrl, requireBusiness } from "@/lib/auth";
 import { planOf } from "@/lib/plans";
 import { saveSettings } from "../actions";
+import { changePassword } from "@/app/actions/auth";
+import { DEMO_EMAIL } from "@/lib/seed";
 
 export default async function SettingsPage() {
   const { biz, user } = await requireBusiness();
@@ -88,6 +90,22 @@ export default async function SettingsPage() {
           <dt className="text-muted">預約頁代稱</dt>
           <dd>{biz.slug}（建立後無法變更，以免已分享的連結失效）</dd>
         </dl>
+        {user.email !== DEMO_EMAIL && (
+          <ActionForm action={changePassword} resetOnOk submit="更新密碼" submitClass="btn btn-ghost self-end" className="mt-5 flex flex-wrap items-end gap-3 border-t border-line pt-5">
+            <div className="min-w-40 flex-1">
+              <label className="label" htmlFor="pw-current">
+                目前的密碼
+              </label>
+              <input id="pw-current" name="current" type="password" autoComplete="current-password" required className="input" />
+            </div>
+            <div className="min-w-40 flex-1">
+              <label className="label" htmlFor="pw-new">
+                新密碼（至少 8 個字元）
+              </label>
+              <input id="pw-new" name="password" type="password" autoComplete="new-password" required minLength={8} className="input" />
+            </div>
+          </ActionForm>
+        )}
       </section>
     </div>
   );

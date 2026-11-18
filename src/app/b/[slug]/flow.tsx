@@ -50,6 +50,9 @@ export function BookingFlow({ slug, services, staff, days, notice }: { slug: str
   const [slotError, setSlotError] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
+  // 聯絡資料放在 state：回上一步改時間、或時段被搶走重選時，已填的內容不會消失
+  const [contact, setContact] = useState({ name: "", phone: "", email: "", note: "" });
+  const field = (k: keyof typeof contact) => ({ value: contact[k], onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setContact((c) => ({ ...c, [k]: e.target.value })) });
   const [pending, startTransition] = useTransition();
 
   const service = services.find((s) => s.id === serviceId);
@@ -80,10 +83,7 @@ export function BookingFlow({ slug, services, staff, days, notice }: { slug: str
         staffId,
         date,
         start,
-        name: String(f.get("name") ?? ""),
-        phone: String(f.get("phone") ?? ""),
-        email: String(f.get("email") ?? ""),
-        note: String(f.get("note") ?? ""),
+        ...contact,
         website: String(f.get("website") ?? ""),
       });
       if (res?.error) {
@@ -263,26 +263,26 @@ export function BookingFlow({ slug, services, staff, days, notice }: { slug: str
                 <label className="label" htmlFor="bk-name">
                   姓名
                 </label>
-                <input id="bk-name" name="name" required maxLength={40} autoComplete="name" className="input" />
+                <input id="bk-name" name="name" {...field("name")} required maxLength={40} autoComplete="name" className="input" />
               </div>
               <div>
                 <label className="label" htmlFor="bk-phone">
                   手機
                 </label>
-                <input id="bk-phone" name="phone" type="tel" required inputMode="tel" autoComplete="tel" placeholder="0912345678" pattern="[0-9+\-\s\(\)]{8,20}" className="input" />
+                <input id="bk-phone" name="phone" type="tel" {...field("phone")} required inputMode="tel" autoComplete="tel" placeholder="0912345678" pattern="[0-9+\-\s\(\)]{8,20}" className="input" />
               </div>
             </div>
             <div>
               <label className="label" htmlFor="bk-email">
                 Email（選填）
               </label>
-              <input id="bk-email" name="email" type="email" autoComplete="email" className="input" />
+              <input id="bk-email" name="email" type="email" {...field("email")} autoComplete="email" className="input" />
             </div>
             <div>
               <label className="label" htmlFor="bk-note">
                 想先讓店家知道的事（選填）
               </label>
-              <textarea id="bk-note" name="note" rows={2} maxLength={300} className="input" />
+              <textarea id="bk-note" name="note" {...field("note")} rows={2} maxLength={300} className="input" />
             </div>
             <div className="hidden" aria-hidden="true">
               <label>

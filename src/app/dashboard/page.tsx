@@ -5,7 +5,7 @@ import { baseUrl, requireBusiness } from "@/lib/auth";
 import { all, get, BOOKING_JOIN, type BookingRow } from "@/lib/db";
 import { monthlyOnlineCount } from "@/lib/booking";
 import { planOf } from "@/lib/plans";
-import { addDays, fmtDateLong, fmtMoney, fmtTime, nowInTz, weekdayOf, WEEKDAYS } from "@/lib/time";
+import { addDays, localMidnightUtc, fmtDateLong, fmtMoney, fmtTime, nowInTz, weekdayOf, WEEKDAYS } from "@/lib/time";
 
 function Kpi({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
@@ -77,7 +77,7 @@ export default async function Overview({ searchParams }: { searchParams: Promise
     biz.id,
     today.slice(0, 7),
   )!;
-  const newCustomers = get<{ n: number }>("SELECT COUNT(*) AS n FROM customers WHERE business_id = ? AND created_at >= ?", biz.id, monthStart)!.n;
+  const newCustomers = get<{ n: number }>("SELECT COUNT(*) AS n FROM customers WHERE business_id = ? AND created_at >= ?", biz.id, localMidnightUtc(monthStart, biz.timezone))!.n;
   const show = get<{ done: number; missed: number }>(
     `SELECT COUNT(CASE WHEN status = 'completed' THEN 1 END) AS done, COUNT(CASE WHEN status = 'no_show' THEN 1 END) AS missed
      FROM bookings WHERE business_id = ? AND date >= ? AND date <= ?`,
@@ -106,7 +106,19 @@ export default async function Overview({ searchParams }: { searchParams: Promise
     addDays(today, -30),
   );
 
-  const used = monthlyOnlineCount(biz.id);
+  const totals = get<{ bookings: number; online: number }>(
+    "SELECT COUNT(*) AS bookings, COUNT(CASE WHEN source = 'online' THEN 1 END) AS online FROM bookings WHERE business_id = ?",
+    biz.id,
+  )!;
+  const steps: [done: boolean, label: string, href: string, cta: string][] = [
+    [true, "開好預約頁", `/b/${biz.slug}`, "看看"],
+    [!!(biz.description || biz.address || biz.phone), "補上店家介紹、地址與電話，讓客人放心預約", "/dashboard/settings", "去填寫"],
+    [topServices.length > 0 || totals.bookings > 0, "確認服務項目的時長與價格", "/dashboard/services", "去確認"],
+    [totals.online > 0, "把連結貼到 IG 或 LINE，收到第一筆線上預約", "/dashboard/settings", "複製連結"],
+  ];
+  const showSteps = totals.online === 0;
+
+  const used = monthlyOnlineCount(biz);
   const limit = plan.monthlyBookings;
   const nearQuota = Number.isFinite(limit) && used >= limit * 0.7;
 
@@ -134,6 +146,29 @@ export default async function Overview({ searchParams }: { searchParams: Promise
           </Link>
         </div>
       </div>
+
+      {showSteps && (
+        <section className="panel p-5">
+          <h2 className="font-bold">
+            開始收預約 <span className="tnum ml-1 text-sm font-normal text-muted">{steps.filter((x) => x[0]).length} / {steps.length}</span>
+          </h2>
+          <ol className="mt-3 divide-y divide-line">
+            {steps.map(([ok, label, href, cta]) => (
+              <li key={label} className="flex items-center gap-3 py-2.5">
+                <span className={`flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${ok ? "bg-brand text-white" : "border border-line text-muted"}`} aria-hidden="true">
+                  {ok ? "✓" : ""}
+                </span>
+                <span className={`flex-1 text-sm ${ok ? "text-muted line-through" : "font-medium"}`}>{label}</span>
+                {!ok && (
+                  <Link href={href} className="text-sm font-semibold text-brand hover:underline">
+                    {cta}
+                  </Link>
+                )}
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
 
       {nearQuota && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-sun-soft p-4">

@@ -5,7 +5,7 @@ import { planOf } from "@/lib/plans";
 function cell(v: unknown): string {
   let s = String(v ?? "");
   // 防止 Excel 把開頭為 = + - @ 的內容當公式執行
-  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+  if (/^[=+\-@\t\r]/.test(s) && !/^\+?\d+$/.test(s)) s = `'${s}`;
   return `"${s.replace(/"/g, '""')}"`;
 }
 

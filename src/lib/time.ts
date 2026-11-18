@@ -80,3 +80,10 @@ export function fmtDuration(min: number): string {
   if (h) return `${h} 小時`;
   return `${m} 分鐘`;
 }
+
+/** 商家時區某日 00:00 對應的 UTC 時間字串（'YYYY-MM-DD HH:MM:SS'），用來和資料庫的 UTC created_at 比較 */
+export function localMidnightUtc(date: string, tz: string, at: Date = new Date()): string {
+  const now = nowInTz(tz, at);
+  const offsetMin = toEpochDay(now.date) * 1440 + now.minutes - Math.floor(at.getTime() / 60000);
+  return new Date((toEpochDay(date) * 1440 - offsetMin) * 60000).toISOString().slice(0, 19).replace("T", " ");
+}

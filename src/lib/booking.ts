@@ -2,7 +2,7 @@
 import crypto from "node:crypto";
 import { all, get, run, tx, type Booking, type Business, type Service, type Staff } from "./db.ts";
 import { computeSlots, overlaps, type Interval, type Slot } from "./slots.ts";
-import { isDateStr, nowInTz, weekdayOf } from "./time.ts";
+import { isDateStr, localMidnightUtc, nowInTz, weekdayOf } from "./time.ts";
 import { planOf } from "./plans.ts";
 
 export interface DayHours {
@@ -63,18 +63,20 @@ export function availableSlots(biz: Business, service: Service, date: string, st
   });
 }
 
-/** 本月（UTC 月份）已收到的線上預約數，用於免費版額度 */
-export function monthlyOnlineCount(bizId: number): number {
+/** 本月（商家時區）收到的線上預約數，用於免費版額度。已取消的不計，避免被「約了又取消」耗盡額度 */
+export function monthlyOnlineCount(biz: Pick<Business, "id" | "timezone">): number {
+  const monthStart = `${nowInTz(biz.timezone).date.slice(0, 7)}-01`;
   const r = get<{ n: number }>(
-    "SELECT COUNT(*) AS n FROM bookings WHERE business_id = ? AND source = 'online' AND created_at >= datetime('now','start of month')",
-    bizId,
+    "SELECT COUNT(*) AS n FROM bookings WHERE business_id = ? AND source = 'online' AND status != 'cancelled' AND created_at >= ?",
+    biz.id,
+    localMidnightUtc(monthStart, biz.timezone),
   );
   return r?.n ?? 0;
 }
 
 export function quotaReached(biz: Business): boolean {
   const limit = planOf(biz.plan).monthlyBookings;
-  return Number.isFinite(limit) && monthlyOnlineCount(biz.id) >= limit;
+  return Number.isFinite(limit) && monthlyOnlineCount(biz) >= limit;
 }
 
 export function normalizePhone(raw: string): string | null {
@@ -116,6 +118,7 @@ export function createBooking(input: CreateBookingInput): CreateBookingResult {
     biz.id,
   );
   if (!service || (source === "online" && !service.active)) return { ok: false, error: "找不到這項服務" };
+  if (input.start + service.duration_min > 1440) return { ok: false, error: "預約不能跨過午夜，請改約較早的時間" };
 
   try {
     return tx<CreateBookingResult>(() => {
@@ -140,7 +143,12 @@ export function createBooking(input: CreateBookingInput): CreateBookingResult {
       let customerId: number;
       if (existing) {
         customerId = existing.id;
-        run("UPDATE customers SET name = ?, email = CASE WHEN ? != '' THEN ? ELSE email END WHERE id = ?", name, email, email, customerId);
+        if (source === "manual") {
+          run("UPDATE customers SET name = ? WHERE id = ?", name, customerId);
+        } else if (email) {
+          // 線上預約是匿名的：不覆寫既有顧客的姓名，Email 只在原本沒有時補上
+          run("UPDATE customers SET email = ? WHERE id = ? AND email = ''", email, customerId);
+        }
       } else {
         customerId = run("INSERT INTO customers (business_id, name, phone, email) VALUES (?, ?, ?, ?)", biz.id, name, phone, email).id;
       }
@@ -181,4 +189,18 @@ export function seedDefaultHours(bizId: number): void {
       wd === 1 ? 1 : 0,
     );
   }
+}
+
+/** 把預約改回「已確認」前檢查：同一人員同一天是否已有其他有效預約重疊 */
+export function conflictsWithOthers(b: Pick<Booking, "id" | "business_id" | "staff_id" | "date" | "start_min" | "end_min">): boolean {
+  return !!get(
+    `SELECT 1 AS x FROM bookings WHERE business_id = ? AND staff_id = ? AND date = ? AND id != ?
+     AND status IN ('confirmed','completed') AND start_min < ? AND end_min > ?`,
+    b.business_id,
+    b.staff_id,
+    b.date,
+    b.id,
+    b.end_min,
+    b.start_min,
+  );
 }

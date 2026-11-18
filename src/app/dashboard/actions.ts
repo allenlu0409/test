@@ -1,10 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
+import { notifyCancelled } from "@/lib/notify";
 import { redirect } from "next/navigation";
-import { get, run, tx, type Plan } from "@/lib/db";
+import { get, run, tx, type Booking, type Plan } from "@/lib/db";
 import { requireBusiness } from "@/lib/auth";
-import { createBooking } from "@/lib/booking";
+import { conflictsWithOthers, createBooking } from "@/lib/booking";
 import { planOf, PLANS } from "@/lib/plans";
 import { isDateStr, parseTime } from "@/lib/time";
 import { createCheckout, createPortal, demoBillingEnabled, stripeEnabled } from "@/lib/stripe";
@@ -150,7 +152,20 @@ export async function setBookingStatus(_: FormState, data: FormData): Promise<Fo
   const { biz } = await requireBusiness();
   const status = str(data, "status");
   if (!["confirmed", "completed", "cancelled", "no_show"].includes(status)) return { error: "狀態不正確" };
-  run("UPDATE bookings SET status = ? WHERE id = ? AND business_id = ?", status, int(data, "id"), biz.id);
+  const id = int(data, "id");
+  const before = get<Booking>("SELECT * FROM bookings WHERE id = ? AND business_id = ?", id, biz.id);
+  if (!before) return { error: "找不到這筆預約" };
+  const blocked = tx(() => {
+    // 未到／已取消的預約不占時段，改回有效狀態前要確認這段時間沒有被別人約走
+    const reoccupies = (status === "confirmed" || status === "completed") && (before.status === "no_show" || before.status === "cancelled");
+    if (reoccupies && conflictsWithOthers(before)) return true;
+    run("UPDATE bookings SET status = ? WHERE id = ? AND business_id = ?", status, id, biz.id);
+    return false;
+  });
+  if (blocked) return { error: "這個時段已經有其他預約，無法復原" };
+  if (status === "cancelled" && before.status === "confirmed") {
+    after(() => notifyCancelled(id, "merchant").catch((e) => console.error("notify failed", e)));
+  }
   return done("");
 }
 

@@ -52,6 +52,21 @@ export default async function PublicBookingPage({ params }: { params: Promise<{ 
 
   return (
     <div style={{ "--bc": color, "--bt": textOn(color) } as React.CSSProperties} className="min-h-dvh">
+      <script
+        type="application/ld+json"
+        // 結構化資料：讓搜尋引擎把預約頁辨識為在地商家。「<」轉義避免店家輸入的文字跳出 script
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "LocalBusiness",
+            name: biz.name,
+            description: biz.description || undefined,
+            telephone: biz.phone || undefined,
+            address: biz.address || undefined,
+            makesOffer: services.map((s) => ({ "@type": "Offer", name: s.name, price: s.price, priceCurrency: "TWD" })),
+          }).replace(/</g, "\\u003c"),
+        }}
+      />
       <div className="h-2 bg-(--bc)" />
       <main className="mx-auto max-w-2xl px-4 py-8 sm:py-12">
         <header>

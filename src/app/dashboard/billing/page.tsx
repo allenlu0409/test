@@ -10,7 +10,7 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
   const { biz } = await requireBusiness();
   const { status } = await searchParams;
   const current = planOf(biz.plan);
-  const used = monthlyOnlineCount(biz.id);
+  const used = monthlyOnlineCount(biz);
   const staffCount = get<{ n: number }>("SELECT COUNT(*) AS n FROM staff WHERE business_id = ? AND archived = 0", biz.id)!.n;
   const demo = demoBillingEnabled();
   const live = stripeEnabled();

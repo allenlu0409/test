@@ -110,24 +110,69 @@ export function db(): DatabaseSync {
   const conn = new Ctor(file);
   conn.exec("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
   conn.exec(SCHEMA);
+  migrate(conn);
   g.__yuehaoDb = conn;
   return conn;
+}
+
+/** 以 PRAGMA user_version 記錄版本的遞增式 migration；新增欄位請往陣列尾端加 */
+const MIGRATIONS: string[] = [
+  `ALTER TABLE bookings ADD COLUMN reminded INTEGER NOT NULL DEFAULT 0;
+   CREATE TABLE password_resets (
+     token_hash TEXT PRIMARY KEY,
+     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     expires_at INTEGER NOT NULL
+   );
+   CREATE TABLE mail_log (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     recipient TEXT NOT NULL,
+     subject TEXT NOT NULL,
+     body TEXT NOT NULL,
+     status TEXT NOT NULL,
+     created_at TEXT NOT NULL DEFAULT (datetime('now'))
+   );`,
+];
+
+function migrate(conn: DatabaseSync): void {
+  const current = Number((conn.prepare("PRAGMA user_version").get() as { user_version: number }).user_version);
+  for (let v = current; v < MIGRATIONS.length; v++) {
+    conn.exec("BEGIN IMMEDIATE");
+    try {
+      conn.exec(MIGRATIONS[v]);
+      conn.exec(`PRAGMA user_version = ${v + 1}`);
+      conn.exec("COMMIT");
+    } catch (e) {
+      conn.exec("ROLLBACK");
+      throw e;
+    }
+  }
+}
+
+// 預先編譯的 statement 快取：同一句 SQL 只 prepare 一次
+const stmts = new WeakMap<DatabaseSync, Map<string, ReturnType<DatabaseSync["prepare"]>>>();
+function stmt(sql: string) {
+  const conn = db();
+  let cache = stmts.get(conn);
+  if (!cache) stmts.set(conn, (cache = new Map()));
+  let st = cache.get(sql);
+  if (!st) cache.set(sql, (st = conn.prepare(sql)));
+  return st;
 }
 
 type P = SQLInputValue;
 
 /** 回傳一般物件（node:sqlite 的列是 null-prototype，無法直接傳給 Client Component） */
 export function all<T>(sql: string, ...params: P[]): T[] {
-  return db().prepare(sql).all(...params).map((r) => ({ ...r })) as T[];
+  return stmt(sql).all(...params).map((r) => ({ ...r })) as T[];
 }
 
 export function get<T>(sql: string, ...params: P[]): T | undefined {
-  const r = db().prepare(sql).get(...params);
+  const r = stmt(sql).get(...params);
   return r ? ({ ...r } as T) : undefined;
 }
 
 export function run(sql: string, ...params: P[]): { changes: number; id: number } {
-  const r = db().prepare(sql).run(...params);
+  const r = stmt(sql).run(...params);
   return { changes: Number(r.changes), id: Number(r.lastInsertRowid) };
 }
 
@@ -222,6 +267,7 @@ export interface Booking {
   note: string;
   token: string;
   source: "online" | "manual";
+  reminded: number;
   created_at: string;
 }
 
