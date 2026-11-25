@@ -45,7 +45,8 @@ if (opt("--still")) {
     ["-y", "-loglevel", "error", "-f", "image2pipe", "-framerate", String(FPS), "-i", "-",
      // 加一條靜音音軌：有些平台會拒收沒有音軌的影片
      "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100", "-shortest",
-     "-c:v", "libx264", "-preset", "slow", "-crf", "18", "-pix_fmt", "yuv420p", "-r", String(FPS),
+     // Main profile、Level 4.0：手機的硬體解碼與各社群平台都吃得下（預設會被編成 Level 5.0，很多裝置播不了）
+     "-c:v", "libx264", "-profile:v", "main", "-level", "4.0", "-preset", "slow", "-crf", "21", "-g", String(FPS * 2), "-pix_fmt", "yuv420p", "-r", String(FPS),
      "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", out],
     { stdio: ["pipe", "inherit", "inherit"] },
   );
