@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="video" content="1080x1920@30/26.8">
+<title>約好 Reels：又在回訊息喬時間？</title>
+<link rel="stylesheet" href="base.css">
+<style>
+  /* Reels 的介面會蓋住上方約 250px、下方約 400px，重要文字都放在中間 */
+
+  /* ── 1 痛點：半夜的訊息 ── */
+  .bubble { position: absolute; left: 130px; max-width: 800px; padding: 30px 44px; font-size: 52px; line-height: 1.35; background: #e4e8f0; border-radius: 40px 40px 40px 8px; transform-origin: left bottom; }
+  .bubble.me { left: auto; right: 80px; background: var(--brand); color: #fff; border-radius: 40px 40px 8px 40px; transform-origin: right bottom; }
+  .bubble small { position: absolute; right: -150px; bottom: 6px; font-size: 30px; color: var(--muted); }
+  .strike { position: absolute; left: -24px; right: -24px; top: 50%; height: 9px; margin-top: -4px; background: var(--seal); border-radius: 4px; }
+  .h1 { position: absolute; left: 130px; font-size: 140px; line-height: 1.2; letter-spacing: 0.01em; }
+
+  /* ── 3 主張 ── */
+  .on-blue { background: var(--brand); color: #fff; }
+  .mark { background: linear-gradient(var(--sun), var(--sun)) no-repeat left / 0% 100%; color: var(--ink); padding: 0 0.1em; animation: hl 0.45s var(--inout) var(--t) both; }
+  .phone-in { animation: phone-in 1.1s var(--out) var(--t) both; }
+  @keyframes phone-in { from { transform: translateY(1300px) rotate(9deg); } to { transform: rotate(-3deg); } }
+
+  /* ── 4 三步驟 ── */
+  .cap { position: absolute; left: 110px; top: 250px; right: 60px; opacity: 0; animation: cap var(--d) linear var(--t) both; }
+  @keyframes cap { 0% { opacity: 0; transform: translateY(46px); } 9% { opacity: 1; transform: none; } 91% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(-36px); } }
+  .cap .n { font-size: 170px; line-height: 1; color: var(--brand); float: left; margin-right: 36px; }
+  .cap .l { font-size: 112px; line-height: 1.5; }
+  .cap .s { clear: left; padding-top: 22px; font-size: 48px; color: var(--muted); }
+  .cam1 { animation: cam1 2.4s var(--inout) 8.8s both; }
+  @keyframes cam1 { 0%, 25% { transform: translateY(0); } 70%, 100% { transform: translateY(-18%); } }
+  .cam3 { animation: cam3 2.6s var(--inout) 11.2s both; }
+  @keyframes cam3 { 0% { transform: translateY(-26%) scale(1); } 38%, 100% { transform: translateY(-36%) scale(1.35); } }
+  .cam3 { transform-origin: 20% 80%; }
+  .cam4 { transform-origin: 50% 60%; }
+  .cam4 { animation: cam4 2.6s var(--inout) 13.8s both; }
+  @keyframes cam4 { 0% { transform: translateY(-12%) scale(1); } 45%, 100% { transform: translateY(-20%) scale(1.1); } }
+  .phone-settle { animation: settle 1s var(--out) 8.8s both; }
+  @keyframes settle { from { transform: translateY(240px) scale(0.94); } to { transform: none; } }
+
+  /* ── 6 店家端 ── */
+  .persp { position: absolute; inset: 0; perspective: 2400px; }
+  .pan { animation: pan 4.4s linear 19.2s both; transform-style: preserve-3d; }
+  @keyframes pan { from { transform: translateX(160px) rotateY(-14deg) rotateX(4deg); } to { transform: translateX(-380px) rotateY(-7deg) rotateX(2deg); } }
+</style>
+</head>
+<body>
+<div id="stage">
+
+  <!-- 1–2：半夜的訊息，然後全部劃掉 -->
+  <section class="scene ruled" style="--at:0s; --len:6.4s; --rule:120px; --margin:96px">
+    <p class="abs tnum" style="left:130px; top:268px; font-size:42px; color:var(--muted)">週五　23:47</p>
+    <h1 class="h1 serif a fade-out" style="top:340px; --t:3.45s; --d:.25s">又在回訊息<br>喬時間？</h1>
+    <h1 class="h1 serif a rise" style="top:340px; --t:3.7s; --d:.6s">這些訊息，<br>不用再回了。</h1>
+
+    <div class="bubble a pop" style="top:740px; --t:.45s; --d:.4s">請問週六下午還有位置嗎？<span class="strike a draw-x" style="--t:3.55s; --d:.3s"></span></div>
+    <div class="bubble a pop" style="top:900px; --t:1.0s; --d:.4s">那三點可以嗎<span class="strike a draw-x" style="--t:3.7s; --d:.3s"></span></div>
+    <div class="bubble a pop" style="top:1060px; --t:1.45s; --d:.4s">還是我改週日？<span class="strike a draw-x" style="--t:3.85s; --d:.3s"></span></div>
+    <div class="bubble a pop" style="top:1220px; --t:1.85s; --d:.4s">在嗎？<span class="strike a draw-x" style="--t:4.0s; --d:.3s"></span></div>
+    <div class="bubble me a pop" style="top:1390px; --t:2.5s; --d:.4s">等我一下，在幫客人上染劑…<span class="strike a draw-x" style="--t:4.15s; --d:.3s"></span></div>
+  </section>
+
+  <!-- 3：主張 -->
+  <div class="wipe-band" style="--at:5.8s"></div>
+  <section class="scene on-blue enter-wipe" style="--at:5.8s; --len:3.8s">
+    <h1 class="h1 serif a rise" style="top:300px; font-size:158px; --t:6.05s">讓客人<br>自己<span class="mark" style="--t:6.45s">約好</span></h1>
+    <div class="phone phone-in" style="left:200px; top:800px; width:680px; height:1447px; --t:6.5s">
+      <div class="screen"><div class="shot"><img src="assets/m-1-services.png" alt=""></div></div>
+    </div>
+  </section>
+
+  <!-- 4–5：三個步驟，然後蓋章 -->
+  <section class="scene enter-up" style="--at:8.8s; --len:11.2s; background:var(--paper)">
+    <div class="a shake" style="position:absolute; inset:0; --t:17.12s">
+      <div class="cap" style="--t:9.1s; --d:2.1s"><span class="n serif">一</span><p class="l serif">選服務</p><p class="s">價目和時間都寫清楚</p></div>
+      <div class="cap" style="--t:11.2s; --d:2.6s"><span class="n serif">二</span><p class="l serif">選時間</p><p class="s">看得到所有空檔，可以指定設計師</p></div>
+      <div class="cap" style="--t:13.8s; --d:2.6s"><span class="n serif">三</span><p class="l serif">留電話</p><p class="s">不用下載 App，不用註冊會員</p></div>
+      <h1 class="h1 serif a rise" style="left:110px; top:270px; font-size:124px; --t:17.6s">就這樣。</h1>
+
+      <div class="phone phone-settle" style="left:190px; top:600px; width:700px; height:1489px">
+        <div class="screen">
+          <div class="shot cam1"><img src="assets/m-1-services.png" alt=""></div>
+          <div class="shot a fade" style="--t:11.2s; --d:.3s"><div class="cam3"><img src="assets/m-3-times.png" alt=""></div></div>
+          <div class="shot a fade" style="--t:13.8s; --d:.3s"><div class="cam4"><img src="assets/m-4-contact.png" alt=""></div></div>
+          <div class="shot a fade" style="--t:16.3s; --d:.3s"><img src="assets/m-5-confirmed.png" alt=""></div>
+          <i class="tap" style="left:340px; top:588px; --t:10.5s"></i>
+          <i class="tap" style="left:538px; top:477px; --t:12.35s"></i>
+          <i class="tap" style="left:126px; top:892px; --t:13.2s"></i>
+        </div>
+      </div>
+      <div class="abs" style="left:0; right:0; top:800px; text-align:center">
+        <span class="stamp slam" style="font-size:230px; --t:16.9s">約好了</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6：店家的預約本 -->
+  <section class="scene enter-left" style="--at:19.4s; --len:4.4s; background:var(--ink); color:#fff">
+    <h1 class="h1 serif a rise" style="left:110px; top:270px; font-size:112px; --t:19.75s">你的預約本，<br>自己排好了。</h1>
+    <p class="abs a rise" style="left:110px; top:590px; right:90px; font-size:46px; line-height:1.5; color:rgb(255 255 255 / .72); --t:20.2s">每位設計師一欄，同一個時段只會被訂走一次。</p>
+    <div class="persp">
+      <div class="pan" style="position:absolute; left:-330px; top:790px; width:2300px">
+        <div class="window" style="position:relative; --bar:48px">
+          <div class="bar"><i></i><i></i><i></i></div>
+          <div class="screen" style="height:1300px"><div class="shot"><img src="assets/d-calendar.png" alt=""></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7：結尾 -->
+  <section class="scene ruled enter-up" style="--at:23.0s; --len:4s; --rule:120px; --margin:96px">
+    <div class="abs" style="left:130px; top:330px"><span class="seal slam" style="font-size:210px; --rot:-4deg; --t:23.45s">約好</span></div>
+    <p class="abs serif a rise" style="left:130px; top:760px; font-size:96px; line-height:1.3; --t:23.9s">美髮・美甲・教練的<br>線上預約本</p>
+    <p class="abs a rise" style="left:130px; top:1080px; font-size:62px; font-weight:700; --t:24.3s">一個人的店，<span class="hl" style="--t:24.8s">免費用</span>。</p>
+    <p class="abs a rise" style="left:130px; top:1230px; padding:34px 56px; font-size:58px; font-weight:700; color:#fff; background:var(--brand); border-radius:6px; --t:24.7s">免費開一個預約頁</p>
+    <p class="abs a fade" style="left:130px; top:1420px; font-size:44px; color:var(--muted); --t:25.2s">連結在個人檔案</p>
+  </section>
+
+</div>
+</body>
+</html>

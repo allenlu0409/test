@@ -1,0 +1,85 @@
+/* 影片共用樣式：品牌色、字體、可用時間軸定位的動畫元件。
+   所有動畫都寫成 CSS animation，延遲時間用 --t（秒）指定；render.mjs 逐格設定 currentTime 來算圖。 */
+:root {
+  --ink: #141a2b;
+  --muted: #556074;
+  --paper: #f1f2f4;
+  --line: #cdd5e3;
+  --brand: #1d3fae;
+  --sun: #ffe45e;
+  --seal: #c8372d;
+  --sans: "Noto Sans TC", sans-serif;
+  --serif: "Noto Serif TC", serif;
+  --out: cubic-bezier(0.16, 1, 0.3, 1);
+  --inout: cubic-bezier(0.65, 0, 0.35, 1);
+  --back: cubic-bezier(0.2, 1.4, 0.4, 1);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+body { font-family: var(--sans); color: var(--ink); font-feature-settings: "palt"; -webkit-font-smoothing: antialiased; }
+#stage { position: relative; width: 100%; height: 100%; overflow: hidden; background: #fff; }
+
+/* 場景：只在 [--at, --at + --len] 之間可見。後面的場景疊在上面，用 .enter-* 蓋過前一個 */
+.scene { position: absolute; inset: 0; overflow: hidden; visibility: hidden; animation: on var(--len) linear var(--at) 1 normal none; }
+@keyframes on { from, to { visibility: visible; } }
+
+.serif { font-family: var(--serif); font-weight: 900; font-feature-settings: normal; }
+.tnum { font-variant-numeric: tabular-nums; }
+.abs { position: absolute; }
+
+/* 進場動畫：--t 是絕對時間（秒），--d 是長度 */
+.a { animation-duration: var(--d, 0.6s); animation-delay: var(--t, 0s); animation-fill-mode: both; animation-timing-function: var(--out); }
+.rise { animation-name: rise; }
+@keyframes rise { from { opacity: 0; transform: translateY(60px); } to { opacity: 1; transform: none; } }
+.fade { animation-name: fade; }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+.fade-out { animation-name: fade-out; }
+@keyframes fade-out { from { opacity: 1; } to { opacity: 0; } }
+.pop { animation-name: pop; animation-timing-function: var(--back); }
+@keyframes pop { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: scale(1); } }
+.draw-x { transform-origin: left center; animation-name: draw-x; animation-timing-function: var(--inout); }
+@keyframes draw-x { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.draw-y { transform-origin: center top; animation-name: draw-y; animation-timing-function: var(--inout); }
+@keyframes draw-y { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+
+/* 螢光筆劃過文字 */
+.hl { background: linear-gradient(transparent 50%, var(--sun) 50%, var(--sun) 94%, transparent 94%) no-repeat left / 0% 100%; padding-inline: 0.06em; animation: hl var(--d, 0.5s) var(--inout) var(--t, 0s) both; }
+@keyframes hl { to { background-size: 100% 100%; } }
+
+/* 紙張從下方蓋上來（場景轉換） */
+.enter-up { animation: on var(--len) linear var(--at) 1 normal none, enter-up 0.7s var(--out) var(--at) both; }
+@keyframes enter-up { from { transform: translateY(100%); } to { transform: none; } }
+.enter-left { animation: on var(--len) linear var(--at) 1 normal none, enter-left 0.7s var(--out) var(--at) both; }
+@keyframes enter-left { from { transform: translateX(100%); } to { transform: none; } }
+/* 螢光筆一筆帶過整個畫面，下一場景從筆跡後面露出來 */
+.enter-wipe { animation: on var(--len) linear var(--at) 1 normal none, enter-wipe 0.6s var(--inout) var(--at) both; }
+@keyframes enter-wipe { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+.wipe-band { position: absolute; top: 0; bottom: 0; width: 14%; background: var(--sun); visibility: hidden; animation: on 0.6s linear var(--at) 1 normal none, wipe-band 0.6s var(--inout) var(--at) both; z-index: 50; }
+@keyframes wipe-band { from { left: -14%; } to { left: 100%; } }
+
+/* 預約本的橫格線與紅色邊線 */
+.ruled { background-color: #fff; background-image: linear-gradient(to right, transparent calc(var(--margin, 90px) - 2px), rgb(200 55 45 / 0.35) calc(var(--margin, 90px) - 2px), rgb(200 55 45 / 0.35) var(--margin, 90px), transparent var(--margin, 90px)), repeating-linear-gradient(to bottom, transparent 0, transparent calc(var(--rule, 96px) - 2px), var(--line) calc(var(--rule, 96px) - 2px), var(--line) var(--rule, 96px)); }
+
+/* 印章 */
+.seal { display: inline-flex; align-items: center; justify-content: center; background: var(--seal); color: #fff; font-family: var(--serif); font-weight: 900; line-height: 1; border-radius: 0.09em; box-shadow: inset 0 0 0 0.045em rgb(255 255 255 / 0.5); letter-spacing: 0.04em; padding: 0.22em 0.2em; }
+.stamp { display: inline-block; border: 0.075em solid var(--seal); color: var(--seal); font-family: var(--serif); font-weight: 900; line-height: 1; letter-spacing: 0.12em; padding: 0.26em 0.3em 0.26em 0.42em; border-radius: 0.07em; mix-blend-mode: multiply; background: rgb(255 255 255 / 0.001); }
+.slam { animation: slam var(--d, 0.32s) cubic-bezier(0.3, 0, 0.2, 1) var(--t, 0s) both; }
+@keyframes slam { 0% { opacity: 0; transform: rotate(var(--rot, -7deg)) scale(3.2); } 70% { opacity: 1; transform: rotate(var(--rot, -7deg)) scale(0.94); } 100% { opacity: 1; transform: rotate(var(--rot, -7deg)) scale(1); } }
+.shake { animation: shake 0.42s linear var(--t, 0s) both; }
+@keyframes shake { 0%, 100% { transform: none; } 15% { transform: translate(-14px, 10px); } 30% { transform: translate(12px, -8px); } 45% { transform: translate(-8px, 6px); } 60% { transform: translate(6px, -3px); } 80% { transform: translate(-3px, 2px); } }
+
+/* 手機 */
+.phone { position: absolute; background: #0c0f18; border-radius: 9% / 4.2%; padding: 1.6%; box-shadow: 0 60px 120px -40px rgb(20 26 43 / 0.55), 0 0 0 2px rgb(255 255 255 / 0.06) inset; }
+.phone .screen { position: relative; width: 100%; height: 100%; overflow: hidden; border-radius: 7.4% / 3.4%; background: var(--paper); }
+.phone .screen > .shot, .window .screen > .shot { position: absolute; left: 0; top: 0; width: 100%; height: 100%; background: var(--paper); overflow: hidden; }
+.shot img { display: block; width: 100%; }
+
+/* 桌機視窗 */
+.window { position: absolute; background: #fff; border-radius: 14px; overflow: hidden; box-shadow: 0 60px 140px -40px rgb(0 0 0 / 0.6); }
+.window .bar { height: var(--bar, 44px); background: #e9ecf2; display: flex; align-items: center; gap: 9px; padding-left: 18px; }
+.window .bar i { width: 13px; height: 13px; border-radius: 50%; background: #c3cad8; }
+.window .screen { position: relative; overflow: hidden; }
+
+/* 點擊的漣漪 */
+.tap { position: absolute; width: var(--s, 120px); height: var(--s, 120px); margin: calc(var(--s, 120px) / -2) 0 0 calc(var(--s, 120px) / -2); border-radius: 50%; background: rgb(29 63 174 / 0.28); border: 3px solid rgb(29 63 174 / 0.7); opacity: 0; animation: tap 0.7s var(--out) var(--t) both; }
+@keyframes tap { 0% { opacity: 0; transform: scale(0.2); } 25% { opacity: 1; transform: scale(0.7); } 100% { opacity: 0; transform: scale(1.25); } }

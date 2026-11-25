@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="video" content="1920x1080@30/93">
+<title>約好：完整使用流程</title>
+<link rel="stylesheet" href="base.css">
+<style>
+  /* 版面：左邊是說明，右邊是真實畫面；底部一條章節進度 */
+  .scene.content { background: var(--paper); }
+  .cap { position: absolute; left: 96px; top: 300px; width: 440px; opacity: 0; animation: cap var(--d) linear var(--t) both; }
+  @keyframes cap { 0% { opacity: 0; transform: translateY(34px); } 6% { opacity: 1; transform: none; } 94% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(-24px); } }
+  .cap h2 { font-family: var(--serif); font-weight: 900; font-feature-settings: normal; font-size: 58px; line-height: 1.3; }
+  .cap p { margin-top: 26px; font-size: 31px; line-height: 1.6; color: var(--muted); }
+  .chap { position: absolute; left: 96px; top: 190px; font-size: 26px; letter-spacing: 0.2em; color: var(--brand); font-weight: 700; }
+  .chap::after { content: ""; display: block; width: 64px; height: 4px; margin-top: 18px; background: var(--ink); }
+
+  .window.main { left: 600px; top: 96px; width: 1250px; --bar: 40px; }
+  .window.main .screen { height: 781px; }
+  .win-in { animation: win-in 0.9s var(--out) var(--t) both; }
+  @keyframes win-in { from { opacity: 0; transform: translate(120px, 40px) scale(0.96); } to { opacity: 1; transform: none; } }
+  /* 鏡頭：--from / --to 是 transform，--o 是推近的中心點 */
+  .cam { transform-origin: var(--o, 50% 50%); animation: cam var(--md, 3s) var(--inout) var(--mt) both; }
+  @keyframes cam { from { transform: var(--from, none); } to { transform: var(--to, none); } }
+
+  /* 章節卡 */
+  .card { background: var(--brand); color: #fff; }
+  .card .num { position: absolute; left: 150px; top: 250px; font-size: 420px; line-height: 1; color: var(--sun); }
+  .card .ttl { position: absolute; left: 640px; top: 370px; font-size: 150px; line-height: 1.15; }
+  .card .sub { position: absolute; left: 648px; top: 580px; font-size: 44px; color: rgb(255 255 255 / 0.78); }
+
+  /* 底部章節進度 */
+  #steps { position: absolute; left: 0; right: 0; bottom: 0; height: 66px; display: flex; align-items: center; gap: 56px; padding-left: 96px; background: #fff; border-top: 2px solid var(--ink); font-size: 24px; color: var(--muted); z-index: 40; visibility: hidden; animation: on 83.6s linear 4.2s 1 normal none; }
+  #steps span { position: relative; padding: 4px 2px; }
+  #steps span b { position: absolute; inset: 0; background: var(--sun); z-index: -1; visibility: hidden; animation: on var(--len) linear var(--at) 1 normal none; }
+  #steps span em { font-style: normal; font-family: var(--serif); font-weight: 900; margin-right: 10px; color: var(--ink); }
+
+  .phone.main { left: 1210px; top: 96px; width: 414px; height: 882px; }
+  .big-step { position: absolute; left: 1500px; top: 340px; font-size: 300px; line-height: 1; color: var(--line); }
+</style>
+</head>
+<body>
+<div id="stage">
+
+  <!-- 片頭 -->
+  <section class="scene ruled" style="--at:0s; --len:4.8s; --rule:90px; --margin:150px">
+    <div class="abs" style="left:190px; top:300px"><span class="seal slam" style="font-size:150px; --rot:-4deg; --t:.35s">約好</span></div>
+    <h1 class="abs serif a rise" style="left:190px; top:560px; font-size:118px; line-height:1.25; --t:.9s">三分鐘，開好你的<span class="hl" style="--t:1.7s">預約頁</span></h1>
+    <p class="abs a rise" style="left:196px; top:760px; font-size:40px; color:var(--muted); --t:1.3s">從開店到客人約進來：完整使用流程</p>
+  </section>
+
+  <!-- 一 開店 -->
+  <div class="wipe-band" style="--at:4.2s"></div>
+  <section class="scene card enter-wipe" style="--at:4.2s; --len:2.2s">
+    <span class="num serif a rise" style="--t:4.4s">一</span><h1 class="ttl serif a rise" style="--t:4.5s">開店</h1><p class="sub a rise" style="--t:4.65s">註冊、填店名，預約頁就有了</p>
+  </section>
+  <section class="scene content enter-up" style="--at:5.7s; --len:13.2s">
+    <p class="chap">一　開店</p>
+    <div class="cap" style="--t:6.1s; --d:3.5s"><h2>註冊只要<br>Email 和密碼</h2><p>不用綁信用卡，也不用等審核。</p></div>
+    <div class="cap" style="--t:9.6s; --d:4.2s"><h2>填店名、選行業、<br>取一個網址</h2><p>這個網址就是之後給客人的預約連結。</p></div>
+    <div class="cap" style="--t:13.8s; --d:5s"><h2>預約頁<br>立刻開好</h2><p>系統已經依你的行業，先列好常見的服務和營業時間，改一改就能用。</p></div>
+    <div class="window main win-in" style="--t:5.9s"><div class="bar"><i></i><i></i><i></i></div><div class="screen">
+      <div class="shot"><div class="cam" style="--mt:6.4s; --md:2.8s; --o:50% 40%; --from:scale(1.45); --to:scale(1.85)"><img src="assets/d-signup.png" alt=""></div></div>
+      <div class="shot a fade" style="--t:9.6s; --d:.35s"><div class="cam" style="--mt:10s; --md:3.2s; --o:50% 46%; --from:scale(1.45); --to:scale(1.85)"><img src="assets/d-onboarding.png" alt=""></div></div>
+      <div class="shot a fade" style="--t:13.8s; --d:.35s"><div class="cam" style="--mt:14.3s; --md:3.8s; --o:79% 20%; --from:scale(1.4); --to:scale(1.4) translateY(-60px)"><img src="assets/d-welcome.png" alt=""></div></div>
+    </div></div>
+  </section>
+
+  <!-- 二 設定 -->
+  <div class="wipe-band" style="--at:18.6s"></div>
+  <section class="scene card enter-wipe" style="--at:18.6s; --len:2.2s">
+    <span class="num serif a rise" style="--t:18.8s">二</span><h1 class="ttl serif a rise" style="--t:18.9s">設定</h1><p class="sub a rise" style="--t:19.05s">價目、人員、營業時間</p>
+  </section>
+  <section class="scene content enter-up" style="--at:20.1s; --len:15.6s">
+    <p class="chap">二　設定</p>
+    <div class="cap" style="--t:20.5s; --d:4.6s"><h2>每項服務：<br>多久、多少錢</h2><p>時長決定一筆預約占多久，系統據此算出空檔。客人預約前就看得到價格。</p></div>
+    <div class="cap" style="--t:25.1s; --d:5.2s"><h2>每位人員：<br>做什麼、休哪天</h2><p>各自有獨立的行程。客人可以指定設計師，同一個時段只會被訂走一次。</p></div>
+    <div class="cap" style="--t:30.3s; --d:5s"><h2>營業時間<br>與預約規則</h2><p>每週時段、臨時公休，還有最晚要提前多久預約。</p></div>
+    <div class="window main win-in" style="--t:20.3s"><div class="bar"><i></i><i></i><i></i></div><div class="screen">
+      <div class="shot"><div class="cam" style="--mt:21s; --md:3.4s; --o:79% 0%; --from:scale(1.4) translateY(-30px); --to:scale(1.4) translateY(-150px)"><img src="assets/d-services.png" alt=""></div></div>
+      <div class="shot a fade" style="--t:25.1s; --d:.35s"><div class="cam" style="--mt:25.8s; --md:3.8s; --o:79% 0%; --from:scale(1.4) translateY(-30px); --to:scale(1.4) translateY(-420px)"><img src="assets/d-staff.png" alt=""></div></div>
+      <div class="shot a fade" style="--t:30.3s; --d:.35s"><div class="cam" style="--mt:31s; --md:3.4s; --o:79% 0%; --from:scale(1.4) translateY(-30px); --to:scale(1.4) translateY(-300px)"><img src="assets/d-hours.png" alt=""></div></div>
+    </div></div>
+  </section>
+
+  <!-- 三 分享 -->
+  <div class="wipe-band" style="--at:35.2s"></div>
+  <section class="scene card enter-wipe" style="--at:35.2s; --len:2.2s">
+    <span class="num serif a rise" style="--t:35.4s">三</span><h1 class="ttl serif a rise" style="--t:35.5s">分享</h1><p class="sub a rise" style="--t:35.65s">一條連結，一個 QR Code</p>
+  </section>
+  <section class="scene content enter-up" style="--at:36.7s; --len:6.6s">
+    <p class="chap">三　分享</p>
+    <div class="cap" style="--t:37.1s; --d:6s"><h2>把連結<br>貼出去</h2><p>IG 個人檔案、LINE 官方帳號、Google 商家。QR Code 可以印成立牌放櫃檯。</p></div>
+    <div class="window main win-in" style="--t:36.9s"><div class="bar"><i></i><i></i><i></i></div><div class="screen">
+      <div class="shot"><div class="cam" style="--mt:37.6s; --md:3.6s; --o:30% 12%; --from:scale(1.4); --to:scale(2)"><img src="assets/d-settings.png" alt=""></div></div>
+    </div></div>
+  </section>
+
+  <!-- 四 客人預約 -->
+  <div class="wipe-band" style="--at:42.8s"></div>
+  <section class="scene card enter-wipe" style="--at:42.8s; --len:2.2s">
+    <span class="num serif a rise" style="--t:43s">四</span><h1 class="ttl serif a rise" style="--t:43.1s">客人預約</h1><p class="sub a rise" style="--t:43.25s">在手機上，選三下</p>
+  </section>
+  <section class="scene content enter-up" style="--at:44.3s; --len:15s">
+    <div class="a shake" style="position:absolute; inset:0; --t:55.62s">
+      <p class="chap">四　客人預約</p>
+      <div class="cap" style="--t:44.7s; --d:3.6s; width:900px"><h2>客人打開連結</h2><p>不用下載 App，不用註冊會員。先看到你的價目表。</p></div>
+      <div class="cap" style="--t:48.3s; --d:3.8s; width:900px"><h2>選設計師、選時間</h2><p>只會列出還空著的時段，已經被訂走的不會出現。</p></div>
+      <div class="cap" style="--t:52.1s; --d:3s; width:900px"><h2>留姓名和手機</h2><p>同一支手機會自動認成同一位客人。</p></div>
+      <div class="cap" style="--t:55.1s; --d:4.1s; width:900px"><h2>約好了</h2><p>客人可以加入行事曆；臨時不能來，也能自己取消，把時段還給你。</p></div>
+      <div class="phone main win-in" style="--t:44.5s">
+        <div class="screen">
+          <div class="shot"><div class="cam" style="--mt:45.4s; --md:2.2s; --to:translateY(-18%)"><img src="assets/m-1-services.png" alt=""></div></div>
+          <div class="shot a fade" style="--t:48.3s; --d:.3s"><div class="cam" style="--mt:48.5s; --md:1.4s; --o:20% 80%; --from:translateY(-26%); --to:translateY(-36%) scale(1.35)"><img src="assets/m-3-times.png" alt=""></div></div>
+          <div class="shot a fade" style="--t:52.1s; --d:.3s"><div class="cam" style="--mt:52.3s; --md:1.4s; --o:50% 60%; --from:translateY(-12%); --to:translateY(-20%) scale(1.1)"><img src="assets/m-4-contact.png" alt=""></div></div>
+          <div class="shot a fade" style="--t:55.1s; --d:.3s"><img src="assets/m-5-confirmed.png" alt=""></div>
+          <i class="tap" style="--s:76px; left:200px; top:345px; --t:47.5s"></i>
+          <i class="tap" style="--s:76px; left:318px; top:282px; --t:50.3s"></i>
+          <i class="tap" style="--s:76px; left:75px; top:527px; --t:51.3s"></i>
+        </div>
+      </div>
+      <div class="abs" style="left:1210px; top:300px; width:414px; text-align:center"><span class="stamp slam" style="font-size:118px; --t:55.4s">約好了</span></div>
+    </div>
+  </section>
+
+  <!-- 五 每天使用 -->
+  <div class="wipe-band" style="--at:58.8s"></div>
+  <section class="scene card enter-wipe" style="--at:58.8s; --len:2.2s">
+    <span class="num serif a rise" style="--t:59s">五</span><h1 class="ttl serif a rise" style="--t:59.1s">每天使用</h1><p class="sub a rise" style="--t:59.25s">打開就是今天的預約本</p>
+  </section>
+  <section class="scene content enter-up" style="--at:60.3s; --len:20.8s">
+    <p class="chap">五　每天使用</p>
+    <div class="cap" style="--t:60.7s; --d:5s"><h2>今天有誰來</h2><p>今日預約、本月營收、新顧客、未到率，還有哪一項服務最賺。</p></div>
+    <div class="cap" style="--t:65.7s; --d:5.4s"><h2>做完按完成，<br>沒來按未到</h2><p>可以改期。電話或現場來的預約手動記進去，空檔會同步更新。</p></div>
+    <div class="cap" style="--t:71.1s; --d:4.6s"><h2>一週的行程</h2><p>每位設計師的預約排在一起看，哪天滿、哪天空一目了然。</p></div>
+    <div class="cap" style="--t:75.7s; --d:5s"><h2>顧客名單<br>自己累積</h2><p>來過幾次、花了多少、上次什麼時候來。偏好和禁忌寫在備註。</p></div>
+    <div class="window main win-in" style="--t:60.5s"><div class="bar"><i></i><i></i><i></i></div><div class="screen">
+      <div class="shot"><div class="cam" style="--mt:61.6s; --md:3.4s; --o:79% 0%; --from:scale(1.4) translateY(-20px); --to:scale(1.4) translateY(-420px)"><img src="assets/d-dashboard.png" alt=""></div></div>
+      <div class="shot a fade" style="--t:65.7s; --d:.35s"><div class="cam" style="--mt:66.3s; --md:3.6s; --o:79% 0%; --from:scale(1.4) translateY(-10px); --to:scale(1.4) translateY(-110px)"><img src="assets/d-bookings.png" alt=""></div></div>
+      <div class="shot a fade" style="--t:71.1s; --d:.35s"><div class="cam" style="--mt:71.5s; --md:3.8s; --o:79% 0%; --from:scale(1.4) translateY(-10px); --to:scale(1.4) translateY(-120px)"><img src="assets/d-calendar.png" alt=""></div></div>
+      <div class="shot a fade" style="--t:75.7s; --d:.35s"><div class="cam" style="--mt:76.3s; --md:3.8s; --o:79% 0%; --from:scale(1.4) translateY(-30px); --to:scale(1.4) translateY(-520px)"><img src="assets/d-customers.png" alt=""></div></div>
+    </div></div>
+  </section>
+
+  <!-- 六 升級 -->
+  <div class="wipe-band" style="--at:80.6s"></div>
+  <section class="scene card enter-wipe" style="--at:80.6s; --len:2.2s">
+    <span class="num serif a rise" style="--t:80.8s">六</span><h1 class="ttl serif a rise" style="--t:80.9s">升級</h1><p class="sub a rise" style="--t:81.05s">先免費用，生意變好再說</p>
+  </section>
+  <section class="scene content enter-up" style="--at:82.1s; --len:6.2s">
+    <p class="chap">六　升級</p>
+    <div class="cap" style="--t:82.5s; --d:5.6s"><h2>一個人的店，<br>免費用</h2><p>請了第二個人，或每月線上預約超過 30 筆，再升級。可以月繳或年繳，隨時取消。</p></div>
+    <div class="window main win-in" style="--t:82.3s"><div class="bar"><i></i><i></i><i></i></div><div class="screen">
+      <div class="shot"><div class="cam" style="--mt:83s; --md:3.4s; --o:79% 0%; --from:scale(1.4) translateY(-10px); --to:scale(1.4) translateY(-70px)"><img src="assets/d-billing.png" alt=""></div></div>
+    </div></div>
+  </section>
+
+  <!-- 結尾 -->
+  <section class="scene ruled enter-up" style="--at:87.8s; --len:5.4s; --rule:90px; --margin:150px">
+    <div class="abs" style="left:190px; top:250px"><span class="seal slam" style="font-size:130px; --rot:-4deg; --t:88.3s">約好</span></div>
+    <h1 class="abs serif a rise" style="left:190px; top:480px; font-size:112px; line-height:1.25; --t:88.6s">下一位客人，<br>讓他自己<span class="hl" style="--t:89.5s">約好</span>。</h1>
+    <p class="abs a rise" style="left:190px; top:810px; padding:22px 44px; font-size:42px; font-weight:700; color:#fff; background:var(--brand); border-radius:5px; --t:89.2s">免費開一個預約頁</p>
+  </section>
+
+  <div id="steps">
+    <span><b style="--at:4.2s; --len:14.4s"></b><em>一</em>開店</span>
+    <span><b style="--at:18.6s; --len:16.6s"></b><em>二</em>設定</span>
+    <span><b style="--at:35.2s; --len:7.6s"></b><em>三</em>分享</span>
+    <span><b style="--at:42.8s; --len:16s"></b><em>四</em>客人預約</span>
+    <span><b style="--at:58.8s; --len:21.8s"></b><em>五</em>每天使用</span>
+    <span><b style="--at:80.6s; --len:7.2s"></b><em>六</em>升級</span>
+  </div>
+</div>
+</body>
+</html>
