@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { sendDueReminders } from "@/lib/notify";
+import { runScheduledJobs } from "@/lib/jobs";
 
 export const dynamic = "force-dynamic";
 
@@ -10,5 +10,5 @@ export async function POST(req: Request) {
   const given = Buffer.from(req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "");
   const want = Buffer.from(secret);
   if (given.length !== want.length || !crypto.timingSafeEqual(given, want)) return new Response("unauthorized", { status: 401 });
-  return Response.json({ sent: await sendDueReminders() });
+  return Response.json(await runScheduledJobs());
 }

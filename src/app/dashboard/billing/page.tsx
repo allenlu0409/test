@@ -3,7 +3,7 @@ import { requireBusiness } from "@/lib/auth";
 import { get } from "@/lib/db";
 import { monthlyOnlineCount } from "@/lib/booking";
 import { PLANS, PLAN_ORDER, planOf } from "@/lib/plans";
-import { demoBillingEnabled, stripeEnabled } from "@/lib/stripe";
+import { activeProvider } from "@/lib/billing";
 import { changePlan } from "../actions";
 
 export default async function BillingPage({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
@@ -12,9 +12,12 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
   const current = planOf(biz.plan);
   const used = monthlyOnlineCount(biz);
   const staffCount = get<{ n: number }>("SELECT COUNT(*) AS n FROM staff WHERE business_id = ? AND archived = 0", biz.id)!.n;
-  const demo = demoBillingEnabled();
-  const live = stripeEnabled();
-  const subscribed = live && !!biz.stripe_subscription_id;
+  const provider = activeProvider();
+  const demo = provider === "demo";
+  const live = provider === "stripe" || provider === "ecpay";
+  // Stripe 有客戶入口可自助管理；綠界則直接在本頁換方案或取消
+  const subscribed = provider === "stripe" && !!biz.stripe_subscription_id;
+  const ending = !!biz.cancel_at_period_end && biz.plan !== "free";
   const renews = biz.plan_renews_at ? new Date(biz.plan_renews_at * 1000).toLocaleDateString("zh-TW", { timeZone: biz.timezone }) : null;
 
   return (
@@ -24,6 +27,16 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
       {status === "success" && (
         <p role="status" className="rounded-2xl bg-brand-soft p-4 text-sm font-medium text-brand-dark">
           付款成功，謝謝你的支持！方案會在幾秒內生效，若尚未更新請重新整理頁面。
+        </p>
+      )}
+      {status === "pending" && (
+        <p role="status" className="rounded-2xl bg-brand-soft p-4 text-sm font-medium text-brand-dark">
+          付款完成後方案會在一分鐘內生效，請稍候再重新整理頁面。若你沒有完成付款，方案不會變更。
+        </p>
+      )}
+      {status === "cancel-scheduled" && (
+        <p role="status" className="rounded-2xl bg-paper p-4 text-sm">
+          訂閱已取消，之後不會再扣款。{renews ? `付費功能可以使用到 ${renews}，之後自動回到免費版。` : ""}資料都會保留。
         </p>
       )}
       {status === "switched" && (
@@ -42,7 +55,7 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
         <div>
           <p className="text-xs text-muted">目前方案</p>
           <p className="mt-1 text-xl font-bold">{current.name}</p>
-          {renews && biz.plan !== "free" && <p className="text-xs text-muted">下次扣款日 {renews}</p>}
+          {renews && biz.plan !== "free" && <p className="text-xs text-muted">{ending ? `已取消訂閱，可使用至 ${renews}` : `下次扣款日 ${renews}`}</p>}
         </div>
         <div>
           <p className="text-xs text-muted">本月線上預約</p>
@@ -102,9 +115,9 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
                 ) : (
                   <ActionForm
                     action={changePlan}
-                    submit={isUp ? `升級${p.name}` : subscribed ? "變更方案" : `改用${p.name}`}
+                    submit={isUp ? `升級${p.name}` : subscribed ? "變更方案" : id === "free" && live ? "取消訂閱" : `改用${p.name}`}
                     submitClass={`btn w-full ${isUp ? "btn-primary" : "btn-ghost"}`}
-                    confirmText={isUp ? undefined : "確定降級？"}
+                    confirmText={isUp ? undefined : id === "free" ? "確定取消訂閱？" : "確定降級？"}
                   >
                     <input type="hidden" name="plan" value={id} />
                   </ActionForm>
@@ -117,7 +130,7 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
 
       <p className="text-sm text-muted">
         {live
-          ? "付款由 Stripe 安全處理，我們不會儲存你的卡號。可隨時取消，當期結束後自動回到免費版，資料全部保留。"
+          ? `付款由${provider === "ecpay" ? "綠界科技" : " Stripe "}安全處理，我們不會儲存你的卡號。可隨時取消，當期結束後自動回到免費版，資料全部保留。`
           : "可隨時變更方案，降級後資料全部保留；超出方案上限的服務人員不會被刪除，但無法再新增。"}
       </p>
     </div>

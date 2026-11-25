@@ -4,7 +4,7 @@ import { requireBusiness } from "@/lib/auth";
 import { all } from "@/lib/db";
 import { planOf } from "@/lib/plans";
 import { fmtMoney } from "@/lib/time";
-import { saveCustomerNote } from "../actions";
+import { deleteCustomer, saveCustomerNote } from "../actions";
 
 interface Row {
   id: number;
@@ -29,7 +29,7 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
             MAX(CASE WHEN b.status = 'completed' THEN b.date END) AS last_visit,
             COUNT(CASE WHEN b.status = 'no_show' THEN 1 END) AS missed
      FROM customers c LEFT JOIN bookings b ON b.customer_id = c.id
-     WHERE c.business_id = ? AND (c.name LIKE ? OR c.phone LIKE ?)
+     WHERE c.business_id = ? AND c.phone NOT LIKE 'deleted-%' AND (c.name LIKE ? OR c.phone LIKE ?)
      GROUP BY c.id ORDER BY last_visit DESC NULLS LAST, c.id DESC LIMIT 300`,
     biz.id,
     like,
@@ -86,6 +86,9 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
                     顧客備註{c.email && <span className="ml-2 font-normal text-muted">{c.email}</span>}
                   </label>
                   <textarea id={`note-${c.id}`} name="note" rows={2} maxLength={500} defaultValue={c.note} placeholder="例如：頭皮敏感、習慣冷色系、不愛聊天" className="input" />
+                </ActionForm>
+                <ActionForm action={deleteCustomer} submit="刪除這位顧客的個人資料" submitClass="text-sm text-danger hover:underline" confirmText="確定刪除？此動作無法復原" className="border-t border-line bg-paper/60 px-5 py-3">
+                  <input type="hidden" name="id" value={c.id} />
                 </ActionForm>
               </details>
             </li>

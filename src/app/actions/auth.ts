@@ -3,13 +3,15 @@
 import { redirect } from "next/navigation";
 import { get, run, tx, type User } from "@/lib/db";
 import { businessOf, createSession, currentUser, destroySession, hashPassword, verifyPassword } from "@/lib/auth";
-import { clientIp, hit, hitByIp } from "@/lib/ratelimit";
+import { hit } from "@/lib/ratelimit";
+import { clientIp, hitByIp } from "@/lib/client-ip";
 import { CATEGORIES, CATEGORY_TEMPLATES } from "@/lib/plans";
 import { seedDefaultHours } from "@/lib/booking";
 import { ensureDemo } from "@/lib/seed";
 import crypto from "node:crypto";
 import { sendMail } from "@/lib/mail";
 import { baseUrl, requireBusiness } from "@/lib/auth";
+import { str } from "@/lib/formdata";
 import type { FormState } from "@/components/form";
 
 const DUMMY_HASH = hashPassword("not-a-real-password");
@@ -17,9 +19,6 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$/;
 const RESERVED = new Set(["demo", "admin", "api", "app", "www", "dashboard", "login", "signup", "booking", "yuehao", "support", "help"]);
 
-function str(data: FormData, key: string, max = 200): string {
-  return String(data.get(key) ?? "").trim().slice(0, max);
-}
 
 export async function signup(_: FormState, data: FormData): Promise<FormState> {
   if (!(await hitByIp("signup", 8, 3600_000))) return { error: "嘗試次數過多，請稍後再試" };

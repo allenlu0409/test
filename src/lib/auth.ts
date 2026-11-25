@@ -1,7 +1,8 @@
 import "server-only";
 import crypto from "node:crypto";
 import { cookies, headers } from "next/headers";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { isAdminEmail } from "./admin";
 import { get, run, type Business, type User } from "./db";
 
 export { hashPassword, verifyPassword } from "./password";
@@ -65,4 +66,11 @@ export async function baseUrl(): Promise<string> {
   const host = h.get("x-forwarded-host") || h.get("host") || "localhost:3000";
   const proto = h.get("x-forwarded-proto") || (host.startsWith("localhost") || host.startsWith("127.") ? "http" : "https");
   return `${proto}://${host}`;
+}
+
+/** 營運後台守門：非管理者一律回 404，不透露後台存在 */
+export async function requireAdmin(): Promise<User> {
+  const user = await currentUser();
+  if (!user || !isAdminEmail(user.email)) notFound();
+  return user;
 }

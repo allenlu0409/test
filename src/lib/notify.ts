@@ -88,6 +88,16 @@ export async function notifyCancelled(bookingId: number, by: "customer" | "merch
   }
 }
 
+export async function notifyRescheduled(bookingId: number): Promise<void> {
+  const c = load(bookingId);
+  if (!c?.customerEmail) return;
+  await sendMail({
+    to: c.customerEmail,
+    subject: `預約時間已更改｜${c.biz.name} ${fmtDateLong(c.b.date)} ${fmtTime(c.b.start_min)}`,
+    text: `${c.b.customer_name} 你好，店家調整了你的預約時間，新的時間如下：\n\n${details(c)}\n\n時間不方便嗎？可以在這裡取消後重新預約：${manageLink(c.b)}`,
+  });
+}
+
 /**
  * 寄出「明天」的預約提醒（專業版以上、顧客有留 Email、尚未提醒過）。
  * 每間店依自己的時區，在前一天早上 9 點後寄出；可重複呼叫，不會重寄。

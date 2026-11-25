@@ -13,9 +13,9 @@ function applySubscription(sub: StripeSubscription, businessId?: number) {
 
   if (plan === "free") {
     // 只降級「目前就是這個訂閱」的店家：過期的未完成結帳、舊訂閱的事件不能影響正在付費的訂閱
-    run("UPDATE businesses SET plan = 'free', stripe_subscription_id = NULL, plan_renews_at = NULL WHERE stripe_subscription_id = ?", sub.id);
+    run("UPDATE businesses SET plan = 'free', stripe_subscription_id = NULL, plan_renews_at = NULL, billing_provider = NULL WHERE stripe_subscription_id = ?", sub.id);
   } else if (bizId) {
-    run("UPDATE businesses SET plan = ?, stripe_customer_id = ?, stripe_subscription_id = ?, plan_renews_at = ? WHERE id = ?", plan, sub.customer, sub.id, renews, bizId);
+    run("UPDATE businesses SET plan = ?, stripe_customer_id = ?, stripe_subscription_id = ?, plan_renews_at = ?, billing_provider = 'stripe' WHERE id = ?", plan, sub.customer, sub.id, renews, bizId);
   } else {
     run("UPDATE businesses SET plan = ?, plan_renews_at = ? WHERE stripe_subscription_id = ?", plan, renews, sub.id);
   }

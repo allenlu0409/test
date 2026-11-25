@@ -125,6 +125,7 @@ export function createBooking(input: CreateBookingInput): CreateBookingResult {
       let staffId: number | undefined;
 
       if (source === "online") {
+        if (biz.suspended) return { ok: false, error: "這間店目前暫停線上預約" };
         if (quotaReached(biz)) return { ok: false, error: "本月線上預約已額滿，請直接與店家聯繫" };
         const slot = availableSlots(biz, service, input.date, input.staffId).find((s) => s.start === input.start);
         if (!slot) return { ok: false, error: "這個時段剛剛被訂走了，請改選其他時段" };

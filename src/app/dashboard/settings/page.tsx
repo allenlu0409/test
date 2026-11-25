@@ -4,6 +4,7 @@ import { baseUrl, requireBusiness } from "@/lib/auth";
 import { planOf } from "@/lib/plans";
 import { saveSettings } from "../actions";
 import { changePassword } from "@/app/actions/auth";
+import { deleteAccount } from "../actions";
 import { DEMO_EMAIL } from "@/lib/seed";
 
 export default async function SettingsPage() {
@@ -25,6 +26,17 @@ export default async function SettingsPage() {
           <Link href={`/b/${biz.slug}`} target="_blank" className="btn btn-ghost btn-sm">
             開啟
           </Link>
+        </div>
+        <div className="flex w-full flex-wrap items-center gap-4 border-t border-line pt-4">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/dashboard/qr" alt="預約頁 QR Code" width={112} height={112} className="rounded-lg border border-line" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium">QR Code</p>
+            <p className="text-sm text-muted">印成櫃檯立牌、貼在鏡子旁或放在名片上，客人掃了就能約下一次。</p>
+            <a href="/dashboard/qr?download" className="mt-2 inline-block text-sm font-semibold text-brand hover:underline">
+              下載 QR Code（SVG）
+            </a>
+          </div>
         </div>
       </section>
 
@@ -107,6 +119,29 @@ export default async function SettingsPage() {
           </ActionForm>
         )}
       </section>
+      {user.email !== DEMO_EMAIL && (
+        <section className="panel border-danger/30 p-5">
+          <h2 className="font-bold text-danger">刪除帳號</h2>
+          <p className="mt-1 text-sm text-muted">店家資料、服務、顧客名單與所有預約紀錄會立即且永久刪除，預約頁連結也會失效。此動作無法復原，建議先匯出顧客與預約資料。</p>
+          <details className="mt-3">
+            <summary className="inline-block text-sm font-medium text-danger hover:underline">我要刪除帳號</summary>
+            <ActionForm action={deleteAccount} submit="永久刪除帳號" submitClass="btn btn-danger self-end" confirmText="最後確認：永久刪除" className="mt-3 flex flex-wrap items-end gap-3">
+              <div className="min-w-40 flex-1">
+                <label className="label" htmlFor="del-pw">
+                  密碼
+                </label>
+                <input id="del-pw" name="password" type="password" autoComplete="current-password" required className="input" />
+              </div>
+              <div className="min-w-40 flex-1">
+                <label className="label" htmlFor="del-confirm">
+                  輸入預約頁代稱「{biz.slug}」確認
+                </label>
+                <input id="del-confirm" name="confirm" required autoComplete="off" className="input" />
+              </div>
+            </ActionForm>
+          </details>
+        </section>
+      )}
     </div>
   );
 }

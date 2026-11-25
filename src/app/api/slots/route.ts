@@ -12,7 +12,7 @@ export async function GET(req: Request) {
 
   const service = get<Service>("SELECT * FROM services WHERE id = ? AND business_id = ? AND active = 1 AND archived = 0", Number(q.get("service")), biz.id);
   if (!service) return Response.json({ error: "service not found" }, { status: 404 });
-  if (quotaReached(biz)) return Response.json({ slots: [] });
+  if (biz.suspended || quotaReached(biz)) return Response.json({ slots: [] });
 
   const staffId = Number(q.get("staff")) || null;
   const slots = availableSlots(biz, service, date, staffId).map((s) => s.start);

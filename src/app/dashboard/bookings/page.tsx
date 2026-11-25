@@ -5,7 +5,8 @@ import { requireBusiness } from "@/lib/auth";
 import { all, BOOKING_JOIN, type BookingRow } from "@/lib/db";
 import { activeServices, activeStaff } from "@/lib/booking";
 import { fmtDateShort, fmtDuration, fmtMoney, fmtTime, nowInTz } from "@/lib/time";
-import { createManualBooking, setBookingStatus } from "../actions";
+import { planOf } from "@/lib/plans";
+import { createManualBooking, rescheduleBooking, setBookingStatus } from "../actions";
 
 const TABS = [
   ["upcoming", "即將到來"],
@@ -40,7 +41,18 @@ export default async function BookingsPage({ searchParams }: { searchParams: Pro
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">預約</h1>
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold">預約</h1>
+        {planOf(biz.plan).csvExport ? (
+          <a href="/dashboard/bookings/export" className="btn btn-ghost btn-sm">
+            匯出 CSV
+          </a>
+        ) : (
+          <Link href="/dashboard/billing" className="btn btn-ghost btn-sm">
+            匯出 CSV（專業版）
+          </Link>
+        )}
+      </div>
 
       <details className="panel group" open={sp.new === "1"}>
         <summary className="flex list-none items-center justify-between px-5 py-4 font-semibold">
@@ -156,6 +168,26 @@ export default async function BookingsPage({ searchParams }: { searchParams: Pro
                   <StatusButton id={b.id} status="confirmed" label="復原" />
                 )}
               </div>
+              {b.status === "confirmed" && (
+                <details className="w-full">
+                  <summary className="inline-block text-sm font-medium text-brand hover:underline">改期</summary>
+                  <ActionForm action={rescheduleBooking} submit="確認改期" submitClass="btn btn-ghost btn-sm self-end" className="mt-2 flex flex-wrap items-end gap-3">
+                    <input type="hidden" name="id" value={b.id} />
+                    <div>
+                      <label className="label" htmlFor={`rs-date-${b.id}`}>
+                        新日期
+                      </label>
+                      <input id={`rs-date-${b.id}`} name="date" type="date" required defaultValue={b.date} className="input" />
+                    </div>
+                    <div>
+                      <label className="label" htmlFor={`rs-time-${b.id}`}>
+                        新時間
+                      </label>
+                      <input id={`rs-time-${b.id}`} name="time" type="time" required step={300} defaultValue={fmtTime(b.start_min)} className="input" />
+                    </div>
+                  </ActionForm>
+                </details>
+              )}
             </li>
           ))}
         </ul>

@@ -47,7 +47,7 @@ export default async function PublicBookingPage({ params }: { params: Promise<{ 
     return { date, wd: WEEKDAYS[wd], day: Number(date.slice(8)), month: Number(date.slice(5, 7)), off: !h || h.closed || closed.has(date) };
   });
   const full = quotaReached(biz);
-  const unavailable = full || services.length === 0 || staff.length === 0;
+  const unavailable = !!biz.suspended || full || services.length === 0 || staff.length === 0;
   const color = plan.removeBranding ? biz.brand_color : "#0b6b53";
 
   return (

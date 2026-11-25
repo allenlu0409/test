@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { get, type Business } from "@/lib/db";
 import { createBooking } from "@/lib/booking";
-import { hitByIp } from "@/lib/ratelimit";
+import { hitByIp } from "@/lib/client-ip";
 import { notifyBookingCreated } from "@/lib/notify";
 
 export interface BookInput {

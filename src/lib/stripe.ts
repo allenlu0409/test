@@ -8,16 +8,6 @@ export function appUrl(): string {
   return (process.env.APP_URL || "http://localhost:3000").replace(/\/$/, "");
 }
 
-export function stripeEnabled(): boolean {
-  return !!process.env.STRIPE_SECRET_KEY;
-}
-
-/** 未設定 Stripe 時：開發環境（或 DEMO_BILLING=1）允許不收款直接切換方案，方便展示升級流程 */
-export function demoBillingEnabled(): boolean {
-  if (stripeEnabled()) return false;
-  return process.env.DEMO_BILLING === "1" || process.env.NODE_ENV !== "production";
-}
-
 export function priceIdFor(plan: Plan): string | undefined {
   if (plan === "pro") return process.env.STRIPE_PRICE_PRO;
   if (plan === "business") return process.env.STRIPE_PRICE_BUSINESS;

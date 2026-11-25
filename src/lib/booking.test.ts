@@ -188,3 +188,54 @@ test("商家時區的日界線換算成 UTC", () => {
   assert.equal(localMidnightUtc("2026-11-01", "Asia/Taipei", at), "2026-10-31 16:00:00");
   assert.equal(localMidnightUtc("2026-11-01", "UTC", at), "2026-11-01 00:00:00");
 });
+
+test("訂閱：綠界到期加寬限期後降級；取消訂閱者到期即降級；Stripe 與手動方案不受影響", async () => {
+  const { activatePlan, expireOverdue, addMonth, recordPayment, GRACE_DAYS } = await import("./billing.ts");
+  const now = 1_800_000_000;
+  const plan = (id: number) => get<{ plan: string }>("SELECT plan FROM businesses WHERE id = ?", id)!.plan;
+  const [fresh, lapsed, cancelled, stripe, manual] = Array.from({ length: 5 }, () => makeBiz().biz.id);
+  activatePlan(fresh, "pro", now + 86400, "ecpay");
+  activatePlan(lapsed, "pro", now - (GRACE_DAYS + 1) * 86400, "ecpay");
+  activatePlan(cancelled, "business", now - 60, "ecpay");
+  run("UPDATE businesses SET cancel_at_period_end = 1 WHERE id = ?", cancelled);
+  activatePlan(stripe, "pro", now - 30 * 86400, "stripe");
+  activatePlan(manual, "pro", null, null);
+  // 扣款失敗但仍在寬限期內
+  const inGrace = makeBiz().biz.id;
+  activatePlan(inGrace, "pro", now - 86400, "ecpay");
+
+  assert.equal(expireOverdue(now), 2);
+  assert.deepEqual([fresh, lapsed, cancelled, stripe, manual, inGrace].map(plan), ["pro", "free", "free", "pro", "pro", "pro"]);
+  assert.equal(expireOverdue(now), 0, "可重複執行");
+
+  assert.equal(recordPayment({ businessId: fresh, provider: "ecpay", plan: "pro", amount: 499, reference: "T1", status: "paid" }), true);
+  assert.equal(recordPayment({ businessId: fresh, provider: "ecpay", plan: "pro", amount: 499, reference: "T1", status: "paid" }), false, "webhook 重送不重複記帳");
+
+  const jan31 = Date.UTC(2027, 0, 31) / 1000;
+  assert.equal(new Date(addMonth(jan31) * 1000).toISOString().slice(0, 10), "2027-02-28");
+});
+
+test("刪除帳號會連帶刪除店家所有資料，不留孤兒紀錄，也不影響其他店家", () => {
+  const a = makeBiz("pro", 2);
+  const b = makeBiz();
+  const date = openDay();
+  for (const x of [a, b]) assert.ok(createBooking({ biz: x.biz, serviceId: x.service, staffId: null, date, start: 600, source: "online", ...who(1) }).ok);
+  run("DELETE FROM users WHERE id = ?", a.biz.owner_id);
+  for (const t of ["businesses", "services", "staff", "customers", "bookings", "hours"]) {
+    const col = t === "businesses" ? "id" : "business_id";
+    assert.equal(all(`SELECT 1 FROM ${t} WHERE ${col} = ?`, a.biz.id).length, 0, t);
+    assert.ok(all(`SELECT 1 FROM ${t} WHERE ${col} = ?`, b.biz.id).length > 0, `${t} of other shop`);
+  }
+});
+
+test("停權的店家不能收線上預約；清理工作不會刪掉有效的登入", async () => {
+  const { pruneExpired } = await import("./maintenance.ts");
+  const { biz, service } = makeBiz();
+  run("UPDATE businesses SET suspended = 1 WHERE id = ?", biz.id);
+  const r = createBooking({ biz: { ...biz, suspended: 1 }, serviceId: service, staffId: null, date: openDay(), start: 600, source: "online", ...who(1) });
+  assert.equal(r.ok, false);
+  const now = Date.now();
+  run("INSERT INTO sessions (token_hash, user_id, expires_at) VALUES ('old', ?, ?), ('live', ?, ?)", biz.owner_id, now - 1, biz.owner_id, now + 60_000);
+  pruneExpired(now);
+  assert.deepEqual(all<{ token_hash: string }>("SELECT token_hash FROM sessions WHERE user_id = ?", biz.owner_id).map((s) => s.token_hash), ["live"]);
+});

@@ -131,6 +131,29 @@ const MIGRATIONS: string[] = [
      status TEXT NOT NULL,
      created_at TEXT NOT NULL DEFAULT (datetime('now'))
    );`,
+  `ALTER TABLE businesses ADD COLUMN suspended INTEGER NOT NULL DEFAULT 0;
+   ALTER TABLE businesses ADD COLUMN billing_provider TEXT;
+   ALTER TABLE businesses ADD COLUMN ecpay_trade_no TEXT;
+   ALTER TABLE businesses ADD COLUMN cancel_at_period_end INTEGER NOT NULL DEFAULT 0;
+   CREATE TABLE payments (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     business_id INTEGER NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+     provider TEXT NOT NULL,
+     plan TEXT NOT NULL,
+     amount INTEGER NOT NULL,
+     reference TEXT NOT NULL,
+     status TEXT NOT NULL,
+     created_at TEXT NOT NULL DEFAULT (datetime('now')),
+     UNIQUE (provider, reference)
+   );
+   CREATE TABLE audit_log (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     actor TEXT NOT NULL,
+     action TEXT NOT NULL,
+     detail TEXT NOT NULL DEFAULT '',
+     created_at TEXT NOT NULL DEFAULT (datetime('now'))
+   );
+   CREATE INDEX idx_customers_biz ON customers (business_id);`,
 ];
 
 function migrate(conn: DatabaseSync): void {
@@ -218,6 +241,10 @@ export interface Business {
   stripe_customer_id: string | null;
   stripe_subscription_id: string | null;
   plan_renews_at: number | null;
+  suspended: number;
+  billing_provider: "stripe" | "ecpay" | null;
+  ecpay_trade_no: string | null;
+  cancel_at_period_end: number;
   created_at: string;
 }
 
