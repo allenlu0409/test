@@ -1,0 +1,36 @@
+# Fly.io 部署設定。首次部署：
+#   fly launch --no-deploy --copy-config   （改掉下面的 app 名稱）
+#   fly volumes create data --region nrt --size 1
+#   fly secrets set APP_URL=https://你的網域 ADMIN_EMAILS=你@example.com ...（見 docs/deployment.md）
+#   fly deploy
+app = "yuehao"
+primary_region = "nrt" # 東京，離台灣最近的區域
+
+[build]
+
+[env]
+  DATABASE_PATH = "/data/yuehao.db"
+  CLIENT_IP_HEADER = "fly-client-ip"
+
+[mounts]
+  source = "data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  # 內建排程（提醒、到期降級、備份）需要機器一直開著，所以不自動休眠
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "20s"
+    method = "GET"
+    path = "/api/health"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

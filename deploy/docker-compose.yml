@@ -1,0 +1,32 @@
+# 自有主機（VPS）部署：應用程式 + Caddy（自動申請與續期 HTTPS 憑證）。
+# 用法：在主機上 clone 專案，於 deploy/ 建立 .env（見 ../.env.example），然後
+#   DOMAIN=你的網域 docker compose up -d --build
+services:
+  app:
+    build: ..
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_PATH: /data/yuehao.db
+    volumes:
+      - data:/data
+    expose:
+      - "3000"
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?請設定 DOMAIN，例如 DOMAIN=yuehao.example}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    depends_on:
+      - app
+
+volumes:
+  data:
+  caddy_data:
