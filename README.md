@@ -11,6 +11,7 @@
 | [docs/operations.md](docs/operations.md) | 例行工作、備份還原、儲存空間、流量管控、客服與故障處理、擴充時機 |
 | [docs/security.md](docs/security.md) | 已實作的防護、尚未做的項目、個資法對應 |
 | [docs/business.md](docs/business.md) | 定價與競品、成本、單位經濟、獲客、要追蹤的數字 |
+| [docs/acceptance.md](docs/acceptance.md) | 驗收清單：`npm run preview` 啟動預覽環境後照著走一遍 |
 | [docs/playbook.md](docs/playbook.md) | 怎麼賣、怎麼介紹、分工、哪些事已交給系統 |
 | [marketing/README.md](marketing/README.md) | 行銷影片與重新產出的方法 |
 | [CLAUDE.md](CLAUDE.md) | 開發慣例 |
