@@ -29,7 +29,7 @@ fly secrets set \
   ADMIN_EMAILS=你的Email OPERATOR_NAME="你的公司或姓名" SUPPORT_EMAIL=客服信箱 \
   ECPAY_MERCHANT_ID=... ECPAY_HASH_KEY=... ECPAY_HASH_IV=... \
   RESEND_API_KEY=... MAIL_FROM="約好 <noreply@你的網域>" \
-  CRON_SECRET=$(openssl rand -hex 24)
+  BACKUP_SECRET=$(openssl rand -hex 24)
 
 # 3. 部署
 fly deploy
@@ -44,7 +44,7 @@ fly certs add 你的網域
 2. **寄信網域驗證**：在 Resend 新增你的網域，把它給的 SPF、DKIM 紀錄加到 DNS。沒做這步，信會進垃圾信匣。
 3. **綠界後台**：確認商店已開通信用卡定期定額。回呼網址由程式帶在每筆訂單裡（`/api/ecpay/notify`、`/api/ecpay/period`），不需在後台另外設定。
 4. **建立你的管理者帳號**：用 `ADMIN_EMAILS` 裡的 Email 在網站上註冊，點信中的驗證連結，再到「店家設定」開啟兩步驟驗證（需要手機上的驗證器 App），之後開 `/admin` 就是營運後台。
-5. **開啟異地備份**：在 GitHub repo 的 Settings → Secrets 設定 `APP_URL`、`CRON_SECRET`（與正式站相同）、`BACKUP_PASSPHRASE`。
+5. **開啟異地備份**：在 GitHub repo 的 Settings → Secrets 設定 `APP_URL`、`BACKUP_SECRET`（與正式站相同）、`BACKUP_PASSPHRASE`。
 6. **驗收**：照本文最後的「上線前檢查表」跑一遍。
 
 之後每次更新：`git pull && fly deploy`。出問題時 `fly releases` 找上一版，`fly deploy --image <上一版映像>` 回滾。
@@ -78,13 +78,18 @@ Caddy 會自動申請並續期 HTTPS 憑證。防火牆只開 22、80、443。�
 | `ECPAY_STAGE` | 否 | 設 `1` 使用綠界測試環境 |
 | `STRIPE_SECRET_KEY`、`STRIPE_WEBHOOK_SECRET`、`STRIPE_PRICE_PRO`、`STRIPE_PRICE_BUSINESS` | 否 | 有海外公司時可改用 Stripe（未設綠界時才會生效） |
 | `RESEND_API_KEY`、`MAIL_FROM` | 寄信必填 | 沒設時信件只寫進資料庫，不會寄出 |
-| `CLIENT_IP_HEADER` | 建議 | 反向代理放真實 IP 的標頭名稱 |
+| `CLIENT_IP_HEADER` | 建議 | 反向代理放真實 IP 的標頭名稱（Fly 用 `fly-client-ip`）。沒設時不信任任何轉送標頭 |
+| `TRUST_PROXY` | 視情況 | 前面有自己管的反向代理（如 `deploy/` 的 Caddy）時設 `1`，才會採用 `X-Forwarded-For` |
 | `API_RATE_PER_MINUTE` | 否 | 每個 IP 每分鐘可呼叫公開 API 的次數，預設 120 |
 | `BACKUP_KEEP`、`BACKUP_DIR` | 否 | 每日備份保留份數（預設 7）與位置（預設資料庫旁的 `backups/`） |
-| `CRON_SECRET` | 建議 | 異地備份（GitHub Actions）拉取快照用的密鑰 |
+| `BACKUP_SECRET` | 建議 | 異地備份（GitHub Actions）拉取快照用的密鑰。能下載整個資料庫，不要和別的密鑰共用 |
+| `CRON_SECRET` | 否 | 改用外部排程呼叫 `/api/cron/reminders` 時的密鑰 |
 | `DISABLE_INTERNAL_CRON` | 否 | 改用外部排程呼叫 `/api/cron/reminders` 時設 `1` |
 | `DEMO_ENABLED` | 否 | 設 `off` 關閉首頁的示範後台入口 |
 | `DEMO_BILLING` | 否 | 設 `1` 允許不收款切換方案。**正式環境不要設** |
+| `DEV_MAILBOX`、`ADMIN_REQUIRE_2FA=off`、`INSECURE_COOKIES` | 否 | 只給預覽與驗收用。**正式環境不要設** |
+
+**啟動時的安全檢查**：設了正式的金流或寄信金鑰，卻同時開著上面這些預覽用開關，或沒設 `APP_URL`，伺服器會拒絕啟動並在紀錄裡說明是哪一項（`src/lib/safety.ts`）。
 
 ## 金流開通
 

@@ -84,8 +84,8 @@ deploy/                VPS 部署檔、還原步驟
 ```bash
 npm install
 npm run dev            # http://localhost:3000，首頁可一鍵進示範店家
-npm run check          # 型別 + 35 個單元／整合測試 + 建置
-npm run build && npm run e2e   # 81 項瀏覽器端對端檢查
+npm run check          # 型別 + 40 個單元／整合測試 + 建置
+npm run build && npm run e2e   # 89 項瀏覽器端對端檢查
 ```
 
 - 開發環境沒設金流金鑰時會進入「示範模式」（升級按鈕直接切換方案），沒設寄信金鑰時信件內容印在終端機並寫入 `mail_log` 表。
@@ -97,7 +97,7 @@ npm run build && npm run e2e   # 81 項瀏覽器端對端檢查
 | 層級 | 位置 | 涵蓋 |
 | --- | --- | --- |
 | 單元 | `src/lib/slots.test.ts` | 時段計算、日期工具 |
-| 整合（記憶體資料庫） | `src/lib/booking.test.ts`、`ecpay.test.ts` | 撞期、額度、顧客資料保護、提醒、訂閱到期、綠界簽章與回呼、刪除帳號的連帶刪除 |
+| 整合（記憶體資料庫） | `src/lib/booking.test.ts`、`ecpay.test.ts`、`ops.test.ts` | 撞期、額度、顧客資料保護、提醒、訂閱到期、綠界簽章與回呼、刪除帳號的連帶刪除 |
 | 端對端（真實瀏覽器） | `tests/e2e/smoke.mjs`、`ecpay.mjs` | 註冊到刪除帳號的完整流程、營運後台、限流、安全標頭、綠界結帳表單與回呼 |
 
 ## 實測效能

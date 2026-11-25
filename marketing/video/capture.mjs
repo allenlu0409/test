@@ -12,6 +12,11 @@ const clean = (page) =>
   page.evaluate(() => {
     for (const el of document.querySelectorAll("div")) if (el.children.length <= 1 && el.textContent.startsWith("這是示範店家")) el.remove();
     document.querySelectorAll("div.bg-sun-soft").forEach((el) => el.textContent.includes("還沒確認信箱") && el.remove());
+    // 任何顯示 localhost 網址的文字都換成「你的網域」
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      if (/https?:\/\/localhost:\d+/.test(n.nodeValue)) n.nodeValue = n.nodeValue.replace(/https?:\/\/localhost:\d+/, "你的網域").replace(/(\/booking\/)[\w-]+/, "$1…");
+    }
     for (const el of document.querySelectorAll("p")) {
       if (/^https?:\/\/localhost/.test(el.textContent)) el.textContent = el.textContent.replace(/^https?:\/\/localhost:\d+/, "你的網域");
       if (el.textContent.startsWith("示範模式")) el.remove();
@@ -58,7 +63,7 @@ try {
   await shot(fresh, "d-services-new");
 
   // 有生意的示範店家
-  await desk.click("text=先看示範店家的後台");
+  await desk.click("text=直接看示範店家的後台");
   await desk.waitForURL("**/dashboard");
   await shot(desk, "d-dashboard", { fullPage: true });
   for (const p of ["services", "staff", "hours", "bookings", "calendar", "customers", "settings", "billing"]) {
@@ -93,6 +98,9 @@ try {
     if (s) s.style.visibility = "hidden";
   });
   await shot(phone, "m-5-confirmed");
+  // 捲到最下面：改時間與取消預約
+  await phone.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await shot(phone, "m-6-manage");
 
   // ── 店家端（手機）：三分鐘開店 ──
   const owner = await (await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true })).newPage();

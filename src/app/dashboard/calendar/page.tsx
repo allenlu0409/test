@@ -73,8 +73,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
                   </span>
                 </p>
                 <p className={`text-xs ${isToday ? "font-bold text-seal" : "text-muted"}`}>
-                  週{WEEKDAYS[weekdayOf(date)]}
-                  {isToday && "・今天"}
+                  {isToday ? "今天" : `週${WEEKDAYS[weekdayOf(date)]}`}
                 </p>
               </header>
               {list.length === 0 ? (
