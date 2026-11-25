@@ -13,7 +13,7 @@
     "e2e": "node --no-warnings tests/e2e/smoke.mjs && node --no-warnings tests/e2e/ecpay.mjs",
     "check": "npm run typecheck && npm test && npm run build",
     "video:capture": "node --no-warnings marketing/video/capture.mjs",
-    "video:render": "node marketing/video/render.mjs marketing/video/reel.html marketing/out/yuehao-reel-01.mp4 && node marketing/video/render.mjs marketing/video/walkthrough.html marketing/out/yuehao-walkthrough.mp4"
+    "video:render": "node marketing/video/render.mjs marketing/video/reel.html marketing/out/yuehao-reel-01.mp4 && node marketing/video/render.mjs marketing/video/reel-02.html marketing/out/yuehao-reel-02.mp4 && node marketing/video/render.mjs marketing/video/reel-03.html marketing/out/yuehao-reel-03.mp4 && node marketing/video/render.mjs marketing/video/walkthrough.html marketing/out/yuehao-walkthrough.mp4"
   },
   "engines": {
     "node": ">=22.13"

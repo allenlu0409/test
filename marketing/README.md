@@ -1,13 +1,36 @@
 # 行銷影片
 
-| 檔案 | 規格 | 用途 |
+| 檔案 | 規格 | 內容 |
 | --- | --- | --- |
-| `out/yuehao-reel-01.mp4` | 直式 1080×1920、26.8 秒、30fps | Instagram Reels、TikTok、YouTube Shorts |
-| `out/yuehao-walkthrough.mp4` | 橫式 1920×1080、93 秒、30fps | 完整使用流程：放首頁、傳給店家、YouTube |
+| `out/yuehao-reel-01.mp4` | 直式 1080×1920、26.8 秒 | 痛點切入：半夜還在回訊息喬時間 |
+| `out/yuehao-reel-02.mp4` | 直式 1080×1920、23.8 秒 | 客人爽約：前一天自動提醒、客人自己改期或取消 |
+| `out/yuehao-reel-03.mp4` | 直式 1080×1920、25 秒 | 三分鐘開店：用手機跟著做一次 |
+| `out/yuehao-walkthrough.mp4` | 橫式 1920×1080、93 秒 | 完整使用流程：放首頁、傳給店家、YouTube |
+| `out/preview/` | GIF 與分鏡圖 | 縮小的預覽，方便在聊天室或文件裡直接看；正式發布請用 MP4 |
 
-兩支都**沒有配樂和旁白**（只有一條靜音音軌）。發 Reels 時請在 IG 裡加音樂，用平台內建的曲庫才不會有版權問題。
+全部都**沒有配樂和旁白**（只有一條靜音音軌）。發 Reels 時請在 IG 裡加音樂，用平台內建的曲庫才不會有版權問題。
 
 ## Reels 發文可以搭配的文字
+
+三支可以隔幾天輪流發，各自對應一種店家會有的想法：喬時間很煩（01）、客人爽約（02）、怕設定很麻煩（03）。
+
+**02 客人爽約**
+
+> 客人沒來，那兩個半小時就空在那裡。
+> 前一天自動提醒客人；臨時不能來，他可以自己改期或取消，時段馬上還給你。
+> 連結在個人檔案。
+>
+> #美髮 #美甲 #美睫 #預約制 #爽約 #設計師日常
+
+**03 三分鐘開店**
+
+> 開一個預約頁要多久？用手機三分鐘。
+> 註冊、填店名、價目系統先幫你列好，把連結貼到 IG 就能開始收預約。
+> 一個人的店免費用。連結在個人檔案。
+>
+> #美髮 #美甲 #美睫 #工作室 #預約系統 #接案
+
+**01 喬時間**
 
 > 還在一邊上染劑一邊回訊息喬時間？
 > 開一個預約頁，客人自己選服務、選時間，約好了你才收到通知。
@@ -24,7 +47,8 @@ Reels 結尾寫的是「連結在個人檔案」，發之前記得把網站連�
 ```
 video/capture.mjs      啟動產品、拍下各個畫面 → video/assets/
 video/base.css         共用的動畫元件（進場、螢光筆、印章、手機框、鏡頭）
-video/reel.html        Reels 的分鏡
+video/reel.css         Reels 共用的版面（標題、步驟說明、預約本、通知卡、結尾）
+video/reel.html        Reels 01 的分鏡（reel-02.html、reel-03.html 同理）
 video/walkthrough.html 使用影片的分鏡
 video/render.mjs       逐格算圖 + ffmpeg 編碼
 ```
@@ -34,7 +58,7 @@ video/render.mjs       逐格算圖 + ffmpeg 編碼
 ```bash
 npm run build
 npm run video:capture     # 介面有改才需要重拍
-npm run video:render      # 算出兩支影片
+npm run video:render      # 算出全部影片
 ```
 
 需要：Playwright、ffmpeg（含 libx264）、系統安裝 Noto Sans TC 與 Noto Serif TC 字體。
@@ -44,6 +68,6 @@ npm run video:render      # 算出兩支影片
 - **改文字**：直接改 `.html` 裡的字。
 - **改時間**：每個元素的 `--t` 是出現的秒數，場景的 `--at`／`--len` 是開始時間與長度；影片總長在 `<meta name="video">`。
 - **只看某一格**：`node marketing/video/render.mjs marketing/video/reel.html x --still 12.5 frame.png`
-- **再做一支 Reels**：複製 `reel.html` 改分鏡即可，元件都在 `base.css`。
+- **再做一支 Reels**：複製 `reel-02.html` 改分鏡即可，元件都在 `base.css` 與 `reel.css`。
 
 截圖裡的預約頁網址顯示為「你的網域/b/mumu-hair」。有了正式網域後，改 `capture.mjs` 裡那一行再重拍。

@@ -13,7 +13,7 @@ const clean = (page) =>
     for (const el of document.querySelectorAll("div")) if (el.children.length <= 1 && el.textContent.startsWith("這是示範店家")) el.remove();
     document.querySelectorAll("div.bg-sun-soft").forEach((el) => el.textContent.includes("還沒確認信箱") && el.remove());
     for (const el of document.querySelectorAll("p")) {
-      if (/^https?:\/\/localhost/.test(el.textContent)) el.textContent = "你的網域/b/mumu-hair";
+      if (/^https?:\/\/localhost/.test(el.textContent)) el.textContent = el.textContent.replace(/^https?:\/\/localhost:\d+/, "你的網域");
       if (el.textContent.startsWith("示範模式")) el.remove();
     }
   });
@@ -93,6 +93,29 @@ try {
     if (s) s.style.visibility = "hidden";
   });
   await shot(phone, "m-5-confirmed");
+
+  // ── 店家端（手機）：三分鐘開店 ──
+  const owner = await (await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true })).newPage();
+  await owner.goto(`${B}/signup`);
+  await owner.fill("#name", "小芸");
+  await owner.fill("#email", "yun@yunnail.tw");
+  await owner.fill("#password", "password123");
+  await shot(owner, "o-1-signup");
+  await owner.click('button:has-text("建立帳號")');
+  await owner.waitForURL("**/onboarding");
+  await owner.fill("#name", "芸指甲 Yun Nail");
+  await owner.selectOption("#category", "nail");
+  await owner.fill("#slug", "yun-nail");
+  await shot(owner, "o-2-onboarding");
+  await owner.click('button:has-text("開好預約頁")');
+  await owner.waitForURL("**/dashboard?welcome=1");
+  await shot(owner, "o-3-welcome");
+  await owner.goto(`${B}/dashboard/services`);
+  await shot(owner, "o-4-services");
+  await owner.goto(`${B}/dashboard/settings`);
+  await shot(owner, "o-5-share");
+  await owner.goto(`${B}/b/yun-nail`);
+  await shot(owner, "o-6-page");
 
   // 預約進來之後的店家畫面
   await desk.goto(`${B}/dashboard/bookings`);

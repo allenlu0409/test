@@ -1,0 +1,42 @@
+/* Reels 共用的版面元件（1080×1920）。IG 介面會蓋住上方約 250px、下方約 400px，重要文字放中間 */
+.h1 { position: absolute; left: 130px; font-size: 140px; line-height: 1.2; letter-spacing: 0.01em; }
+.on-blue { background: var(--brand); color: #fff; }
+/* 螢光筆整塊塗滿（深色背景上用） */
+.mark { background: linear-gradient(var(--sun), var(--sun)) no-repeat left / 0% 100%; color: var(--ink); padding: 0 0.1em; animation: hl 0.45s var(--inout) var(--t) both; }
+
+/* 步驟說明：大數字（或時間）＋標題＋一行說明，到時間自動進出 */
+.cap { position: absolute; left: 110px; top: 250px; right: 60px; opacity: 0; animation: cap var(--d) linear var(--t) both; }
+@keyframes cap { 0% { opacity: 0; transform: translateY(46px); } 9% { opacity: 1; transform: none; } 91% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(-36px); } }
+.cap .n { font-size: 170px; line-height: 1; color: var(--brand); float: left; margin-right: 36px; }
+.cap .l { font-size: 112px; line-height: 1.5; }
+.cap .s { clear: left; padding-top: 22px; font-size: 48px; color: var(--muted); }
+.cap.time .n { float: none; display: block; font-family: var(--sans); font-weight: 800; font-size: 84px; font-variant-numeric: tabular-nums; margin: 0 0 6px; }
+.cap.time .l { font-size: 92px; line-height: 1.3; }
+
+.phone-in { animation: phone-in 1.1s var(--out) var(--t) both; }
+@keyframes phone-in { from { transform: translateY(1300px) rotate(9deg); } to { transform: rotate(-3deg); } }
+.phone-settle { animation: settle 1s var(--out) var(--t) both; }
+@keyframes settle { from { transform: translateY(240px) scale(0.94); } to { transform: none; } }
+/* 手機內畫面的鏡頭：--from / --to 是 transform，--o 是推近的中心 */
+.cam { transform-origin: var(--o, 50% 50%); animation: cam var(--md, 2s) var(--inout) var(--mt) both; }
+@keyframes cam { from { transform: var(--from, none); } to { transform: var(--to, none); } }
+
+/* 一頁預約本 */
+.book { position: absolute; left: 110px; right: 90px; background: #fff; border: 3px solid var(--ink); }
+.book .head { display: flex; justify-content: space-between; align-items: baseline; padding: 26px 40px; border-bottom: 5px solid var(--ink); font-size: 50px; }
+.book .head small { font-family: var(--sans); font-weight: 400; font-size: 36px; color: var(--muted); }
+.book .row { position: relative; display: flex; align-items: center; height: 118px; border-bottom: 2px solid var(--line); font-size: 48px; color: var(--brand); }
+.book .row:last-child { border-bottom: 0; }
+.book .row time { width: 190px; padding-left: 40px; font-size: 40px; color: var(--muted); font-variant-numeric: tabular-nums; border-right: 2px solid rgb(200 55 45 / 0.4); align-self: stretch; display: flex; align-items: center; }
+.book .row .txt { position: relative; margin-left: 36px; white-space: nowrap; }
+.book .row .x { position: absolute; left: -12px; right: -12px; top: 52%; height: 7px; background: var(--seal); border-radius: 3px; }
+.tag { margin-left: 28px; font-size: 36px; font-weight: 700; color: var(--seal); border: 3px solid var(--seal); padding: 2px 14px; border-radius: 4px; }
+
+/* 手機通知卡 */
+.note { position: absolute; left: 90px; right: 90px; background: #fff; color: var(--ink); border-radius: 36px; padding: 40px 44px; box-shadow: 0 40px 90px -30px rgb(0 0 0 / 0.5); }
+.note .from { display: flex; align-items: center; gap: 20px; font-size: 36px; color: var(--muted); }
+.note .ttl { margin-top: 22px; font-size: 50px; font-weight: 700; line-height: 1.35; }
+.note .body { margin-top: 14px; font-size: 42px; line-height: 1.5; color: var(--muted); }
+
+/* 結尾卡 */
+.cta { position: absolute; left: 130px; padding: 34px 56px; font-size: 58px; font-weight: 700; color: #fff; background: var(--brand); border-radius: 6px; }
