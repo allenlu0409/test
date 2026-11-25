@@ -3,7 +3,8 @@ import { Logo } from "@/components/brand";
 import { requireBusiness } from "@/lib/auth";
 import { planOf } from "@/lib/plans";
 import { DEMO_EMAIL } from "@/lib/seed";
-import { logout } from "@/app/actions/auth";
+import { logout, resendVerification } from "@/app/actions/auth";
+import { ActionForm } from "@/components/form";
 import { Nav } from "./nav";
 
 export const metadata = { title: "後台", robots: { index: false } };
@@ -55,6 +56,17 @@ export default async function DashboardLayout({ children }: { children: React.Re
             </Link>
           </div>
         )}
+        {!isDemo && !user.email_verified && (
+          <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-b border-ink/15 bg-sun-soft px-4 py-2 text-sm text-[#6b4700]">
+            <span>
+              還沒確認信箱 {user.email}，所以新預約通知目前寄不出去。請到信箱點確認連結。
+            </span>
+            <ActionForm action={resendVerification} submit="重寄確認信" submitClass="font-semibold underline underline-offset-2" inline />
+          </div>
+        )}
+        {biz.suspended ? (
+          <div className="border-b border-danger/30 bg-danger-soft px-4 py-2 text-center text-sm text-danger">你的預約頁目前被暫停，客人無法線上預約。請聯繫客服了解原因。</div>
+        ) : null}
         <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 lg:py-10">{children}</main>
       </div>
     </div>

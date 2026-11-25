@@ -203,7 +203,7 @@ export default function Home() {
               );
             })}
           </div>
-          <p className="mt-4 text-sm text-muted">付費方案都從免費版開始，覺得好用再到後台升級。</p>
+          <p className="mt-4 text-sm text-muted">付費方案都從免費版開始，覺得好用再到後台升級。年繳付 10 個月，用 12 個月。</p>
         </section>
 
         <section className="border-t border-ink/15">

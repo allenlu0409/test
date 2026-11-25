@@ -71,6 +71,7 @@ export async function baseUrl(): Promise<string> {
 /** 營運後台守門：非管理者一律回 404，不透露後台存在 */
 export async function requireAdmin(): Promise<User> {
   const user = await currentUser();
-  if (!user || !isAdminEmail(user.email)) notFound();
+  // 必須驗證過信箱：否則任何人搶先用管理者的 Email 註冊就能進後台
+  if (!user || !user.email_verified || !isAdminEmail(user.email)) notFound();
   return user;
 }

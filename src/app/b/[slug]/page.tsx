@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { all, get, type Business } from "@/lib/db";
-import { activeServices, activeStaff, hoursOf, quotaReached } from "@/lib/booking";
+import { activeServices, activeStaff, hoursOf, offWeekdays, quotaReached, serviceExclusions } from "@/lib/booking";
 import { CATEGORIES, planOf } from "@/lib/plans";
 import { addDays, fmtDuration, fmtMoney, fmtTime, nowInTz, weekdayOf, WEEKDAYS } from "@/lib/time";
 import { BookingFlow } from "./flow";
@@ -44,8 +44,9 @@ export default async function PublicBookingPage({ params }: { params: Promise<{ 
     const date = addDays(today, i);
     const wd = weekdayOf(date);
     const h = hours.get(wd);
-    return { date, wd: WEEKDAYS[wd], day: Number(date.slice(8)), month: Number(date.slice(5, 7)), off: !h || h.closed || closed.has(date) };
+    return { date, wdn: wd, wd: WEEKDAYS[wd], day: Number(date.slice(8)), month: Number(date.slice(5, 7)), off: !h || h.closed || closed.has(date) };
   });
+  const excluded = serviceExclusions(biz.id);
   const full = quotaReached(biz);
   const unavailable = !!biz.suspended || full || services.length === 0 || staff.length === 0;
   const color = plan.removeBranding ? biz.brand_color : "#1d3fae";
@@ -112,7 +113,7 @@ export default async function PublicBookingPage({ params }: { params: Promise<{ 
               slug={biz.slug}
               notice={biz.notice}
               days={days}
-              staff={staff.map((s) => ({ id: s.id, name: s.name, title: s.title }))}
+              staff={staff.map((s) => ({ id: s.id, name: s.name, title: s.title, skips: [...(excluded.get(s.id) ?? [])], off: offWeekdays(s) }))}
               services={services.map((s) => ({ id: s.id, name: s.name, description: s.description, duration: fmtDuration(s.duration_min), price: s.price ? fmtMoney(s.price) : "免費" }))}
             />
           )}

@@ -154,6 +154,27 @@ const MIGRATIONS: string[] = [
      created_at TEXT NOT NULL DEFAULT (datetime('now'))
    );
    CREATE INDEX idx_customers_biz ON customers (business_id);`,
+  `ALTER TABLE staff ADD COLUMN off_weekdays TEXT NOT NULL DEFAULT '';
+   CREATE TABLE staff_service_exclusions (
+     staff_id INTEGER NOT NULL REFERENCES staff(id) ON DELETE CASCADE,
+     service_id INTEGER NOT NULL REFERENCES services(id) ON DELETE CASCADE,
+     PRIMARY KEY (staff_id, service_id)
+   );
+   ALTER TABLE users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 0;
+   CREATE TABLE email_verifications (
+     token_hash TEXT PRIMARY KEY,
+     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     expires_at INTEGER NOT NULL
+   );
+   ALTER TABLE businesses ADD COLUMN quota_notified TEXT NOT NULL DEFAULT '';
+   ALTER TABLE businesses ADD COLUMN billing_cycle TEXT NOT NULL DEFAULT 'month';`,
+  `CREATE TABLE ecpay_cancellations (
+     trade_no TEXT PRIMARY KEY,
+     reason TEXT NOT NULL,
+     attempts INTEGER NOT NULL DEFAULT 0,
+     last_error TEXT NOT NULL DEFAULT '',
+     created_at TEXT NOT NULL DEFAULT (datetime('now'))
+   );`,
 ];
 
 function migrate(conn: DatabaseSync): void {
@@ -220,6 +241,7 @@ export interface User {
   email: string;
   name: string;
   password_hash: string;
+  email_verified: number;
 }
 
 export interface Business {
@@ -245,6 +267,8 @@ export interface Business {
   billing_provider: "stripe" | "ecpay" | null;
   ecpay_trade_no: string | null;
   cancel_at_period_end: number;
+  quota_notified: string;
+  billing_cycle: "month" | "year";
   created_at: string;
 }
 
@@ -266,6 +290,8 @@ export interface Staff {
   title: string;
   active: number;
   archived: number;
+  /** 每週固定休假的星期（0=日 … 6=六），逗號分隔 */
+  off_weekdays: string;
 }
 
 export interface Customer {

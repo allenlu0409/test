@@ -5,7 +5,7 @@ import { after } from "next/server";
 import { get, type Business } from "@/lib/db";
 import { createBooking } from "@/lib/booking";
 import { hitByIp } from "@/lib/client-ip";
-import { notifyBookingCreated } from "@/lib/notify";
+import { notifyBookingCreated, notifyQuota } from "@/lib/notify";
 
 export interface BookInput {
   slug: string;
@@ -42,6 +42,10 @@ export async function book(input: BookInput): Promise<{ error: string }> {
   });
   if (!result.ok) return { error: result.error };
   const bookingId = result.booking.id;
-  after(() => notifyBookingCreated(bookingId).catch((e) => console.error("notify failed", e)));
+  after(() =>
+    notifyBookingCreated(bookingId)
+      .then(() => notifyQuota(biz.id))
+      .catch((e) => console.error("notify failed", e)),
+  );
   redirect(`/booking/${result.booking.token}?new=1`);
 }

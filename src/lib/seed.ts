@@ -42,7 +42,7 @@ export function ensureDemo(): number {
     const rand = rng(20261118);
     // 隨機密碼：示範帳號只能透過「體驗 Demo」按鈕進入
     const userId = run(
-      "INSERT INTO users (email, password_hash, name) VALUES (?, ?, ?)",
+      "INSERT INTO users (email, password_hash, name, email_verified) VALUES (?, ?, ?, 1)",
       DEMO_EMAIL,
       hashPassword(crypto.randomBytes(24).toString("hex")),
       "示範店長",

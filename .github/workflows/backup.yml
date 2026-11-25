@@ -1,0 +1,43 @@
+# 每天把正式站的資料庫快照拉下來、加密後存成 Artifact（保留 30 天），作為異地備份。
+# 需要在 repo 的 Settings → Secrets 設定：
+#   APP_URL            正式站網址，例如 https://yuehao.example
+#   CRON_SECRET        與正式站環境變數相同
+#   BACKUP_PASSPHRASE  加密備份用的密語（自己保管，遺失就無法解密）
+# 還原時解密：openssl enc -d -aes-256-cbc -pbkdf2 -in yuehao.db.enc -out yuehao.db -pass pass:你的密語
+name: Offsite backup
+
+on:
+  schedule:
+    - cron: "20 19 * * *" # 台北時間每天 03:20
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Download snapshot
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          test -n "$APP_URL" || { echo "APP_URL secret is not set; skipping"; exit 0; }
+          curl --fail --silent --show-error -H "Authorization: Bearer $CRON_SECRET" -o yuehao.db "$APP_URL/api/cron/backup"
+          test "$(head -c 15 yuehao.db)" = "SQLite format 3"
+      - name: Encrypt
+        if: hashFiles('yuehao.db') != ''
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          test -n "$BACKUP_PASSPHRASE"
+          openssl enc -aes-256-cbc -pbkdf2 -salt -in yuehao.db -out yuehao.db.enc -pass env:BACKUP_PASSPHRASE
+          rm yuehao.db
+      - uses: actions/upload-artifact@v4
+        if: hashFiles('yuehao.db.enc') != ''
+        with:
+          name: yuehao-backup-${{ github.run_id }}
+          path: yuehao.db.enc
+          retention-days: 30

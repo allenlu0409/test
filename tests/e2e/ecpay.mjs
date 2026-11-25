@@ -73,6 +73,21 @@ async function main() {
   r = await callback("/api/ecpay/period", { ...period, RtnCode: "0", RtnMsg: "失敗", TotalSuccessTimes: "2", ProcessDate: "2027/01/25 10:00:00" });
   check("扣款失敗有記錄且不立即降級", r.status === 200 && plan().plan === "pro" && sql("SELECT COUNT(*) AS n FROM payments WHERE status='failed'")[0].n === 1);
 
+  r = await callback("/api/ecpay/period", { ...period, Amount: "1", TotalSuccessTimes: "3" });
+  check("金額不符的續期通知被拒", r.status === 400);
+  r = await callback("/api/ecpay/period", first);
+  check("首次授權通知不能拿來續期", r.status === 400);
+  r = await callback("/api/ecpay/period", { ...period, MerchantTradeNo: "GHOST123", TotalSuccessTimes: "5" });
+  check("沒有方案卻被扣款的訂閱會排入終止並留紀錄", r.status === 200 && sql("SELECT COUNT(*) AS n FROM ecpay_cancellations WHERE trade_no = 'GHOST123'")[0].n === 1 && sql("SELECT COUNT(*) AS n FROM audit_log WHERE action = 'orphan-charge'")[0].n === 1);
+
+  console.log("\n# 年繳結帳");
+  posted = null;
+  await page.goto(`${B}/dashboard/billing?cycle=year`);
+  await page.click('button:has-text("改為年繳")');
+  await page.waitForURL("https://payment-stage.ecpay.com.tw/**");
+  check("年繳表單", posted.PeriodType === "Y" && posted.TotalAmount === "4990" && posted.ExecTimes === "9" && posted.CheckMacValue === mac(posted));
+  await page.goto(`${B}/dashboard/billing`);
+
   console.log("\n# 取消訂閱");
   await page.click('button:has-text("取消訂閱")');
   await page.click('button:has-text("確定取消訂閱")');

@@ -4,10 +4,10 @@ import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { notifyCancelled, notifyRescheduled } from "@/lib/notify";
 import { redirect } from "next/navigation";
-import { get, run, tx, type Booking, type Plan } from "@/lib/db";
+import { all, get, run, tx, type Booking, type Plan } from "@/lib/db";
 import { destroySession, requireBusiness, verifyPassword } from "@/lib/auth";
 import { conflictsWithOthers, createBooking } from "@/lib/booking";
-import { planOf, PLANS } from "@/lib/plans";
+import { planOf, PLANS, type Cycle } from "@/lib/plans";
 import { isDateStr, parseTime } from "@/lib/time";
 import { createCheckout, createPortal } from "@/lib/stripe";
 import { activatePlan, activeProvider, downgradeToFree } from "@/lib/billing";
@@ -54,6 +54,17 @@ export async function archiveService(_: FormState, data: FormData): Promise<Form
 }
 
 // ── 服務人員 ──────────────────────────────────────────
+/** 表單上勾選的是「會做的服務」與「固定休假日」；資料庫記的是不做的服務（預設全做） */
+function saveStaffSettings(bizId: number, staffId: number, data: FormData): void {
+  const provides = new Set(data.getAll("svc").map(Number));
+  const off = [...new Set(data.getAll("off").map(Number))].filter((n) => Number.isInteger(n) && n >= 0 && n <= 6).sort();
+  run("UPDATE staff SET off_weekdays = ? WHERE id = ? AND business_id = ?", off.join(","), staffId, bizId);
+  run("DELETE FROM staff_service_exclusions WHERE staff_id = ?", staffId);
+  for (const { id } of all<{ id: number }>("SELECT id FROM services WHERE business_id = ? AND archived = 0", bizId)) {
+    if (!provides.has(id)) run("INSERT INTO staff_service_exclusions (staff_id, service_id) VALUES (?, ?)", staffId, id);
+  }
+}
+
 export async function saveStaff(_: FormState, data: FormData): Promise<FormState> {
   const { biz } = await requireBusiness();
   const id = int(data, "id");
@@ -62,7 +73,12 @@ export async function saveStaff(_: FormState, data: FormData): Promise<FormState
   if (!name) return { error: "請填寫名稱" };
 
   if (id) {
-    run("UPDATE staff SET name = ?, title = ? WHERE id = ? AND business_id = ?", name, title, id, biz.id);
+    if (!get("SELECT 1 AS x FROM staff WHERE id = ? AND business_id = ?", id, biz.id)) return { error: "找不到這位人員" };
+    if (data.has("settings") && data.getAll("svc").length === 0) return { error: "至少要勾選一項服務；暫時不接客請改用「設為休假」" };
+    tx(() => {
+      run("UPDATE staff SET name = ?, title = ? WHERE id = ? AND business_id = ?", name, title, id, biz.id);
+      if (data.has("settings")) saveStaffSettings(biz.id, id, data);
+    });
     return done();
   }
   const plan = planOf(biz.plan);
@@ -198,7 +214,7 @@ export async function rescheduleBooking(_: FormState, data: FormData): Promise<F
   const blocked = tx(() => {
     if (conflictsWithOthers({ ...b, date, start_min: start, end_min: end })) return true;
     // 改期後重新寄提醒
-    run("UPDATE bookings SET date = ?, start_min = ?, end_min = ?, reminded = 0 WHERE id = ?", date, start, end, b.id);
+    run("UPDATE bookings SET date = ?, start_min = ?, end_min = ?, reminded = 0 WHERE id = ? AND business_id = ?", date, start, end, b.id, biz.id);
     return false;
   });
   if (blocked) return { error: "新的時段服務人員已有其他預約" };
@@ -256,16 +272,21 @@ export async function changePlan(_: FormState, data: FormData): Promise<FormStat
   const { biz, user } = await requireBusiness();
   const plan = str(data, "plan") as Plan;
   if (!(plan in PLANS)) return { error: "方案不正確" };
-  if (plan === biz.plan && !biz.cancel_at_period_end && !biz.stripe_subscription_id) return { error: "你已經在使用這個方案" };
+  const cycle: Cycle = str(data, "cycle") === "year" ? "year" : "month";
+  const sameCycle = plan === "free" || cycle === biz.billing_cycle;
+  if (plan === biz.plan && sameCycle && !biz.cancel_at_period_end && !biz.stripe_subscription_id) return { error: "你已經在使用這個方案" };
 
+  // 已有訂閱的店家，依「當初用哪家金流訂的」處理，不受之後更換金流設定影響
+  const provider = biz.billing_provider && biz.plan !== "free" ? biz.billing_provider : activeProvider();
   let url: string;
-  switch (activeProvider()) {
+  switch (provider) {
     case "ecpay": {
       if (plan !== "free") {
         // 新訂閱或換方案：付款成功後由回呼啟用新方案，並自動終止舊的定期定額
-        url = `/dashboard/billing/checkout?plan=${plan}`;
+        url = `/dashboard/billing/checkout?plan=${plan}&cycle=${cycle}`;
         break;
       }
+      if (biz.cancel_at_period_end) return { error: "訂閱已經取消了，到期後會自動回到免費版" };
       if (biz.ecpay_trade_no) {
         const r = await cancelPeriod(biz.ecpay_trade_no);
         if (!r.ok) return { error: `取消訂閱失敗，請稍後再試或聯繫客服（${r.message}）` };
@@ -293,7 +314,7 @@ export async function changePlan(_: FormState, data: FormData): Promise<FormStat
       break;
     case "demo":
       if (plan === "free") downgradeToFree(biz.id);
-      else activatePlan(biz.id, plan, null, "demo");
+      else activatePlan(biz.id, plan, null, "demo", cycle);
       revalidatePath("/dashboard", "layout");
       url = "/dashboard/billing?status=switched";
       break;
@@ -315,5 +336,5 @@ export async function deleteAccount(_: FormState, data: FormData): Promise<FormS
   // users → businesses → 服務、人員、顧客、預約 全部連帶刪除
   run("DELETE FROM users WHERE id = ?", user.id);
   await destroySession();
-  redirect("/?deleted=1");
+  redirect("/login?deleted=1");
 }

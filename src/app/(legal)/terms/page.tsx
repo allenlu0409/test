@@ -1,10 +1,13 @@
+import { Operator } from "../operator";
+
+export const dynamic = "force-dynamic";
 export const metadata = { title: "服務條款" };
 
 export default function Terms() {
   return (
     <>
       <h1>服務條款</h1>
-      <p className="rounded-xl bg-sun-soft p-3 text-sm text-[#6b4700]">這是一份範本，正式營運前請依你的公司資料與法律顧問意見修訂。</p>
+      <Operator />
       <h2>一、服務內容</h2>
       <p>「約好」提供線上預約管理工具，讓店家（以下稱「你」）建立預約頁、管理預約與顧客資料。我們不是你與顧客之間交易的當事人，服務內容、價格與履約由你自行負責。</p>
       <h2>二、帳號</h2>

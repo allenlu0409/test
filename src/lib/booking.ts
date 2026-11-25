@@ -27,6 +27,28 @@ export function activeStaff(bizId: number): Staff[] {
   return all<Staff>("SELECT * FROM staff WHERE business_id = ? AND active = 1 AND archived = 0 ORDER BY id", bizId);
 }
 
+/** 各人員「不提供」的服務。預設每個人都做全部服務，所以只記例外 */
+export function serviceExclusions(bizId: number): Map<number, Set<number>> {
+  const rows = all<{ staff_id: number; service_id: number }>(
+    "SELECT x.staff_id, x.service_id FROM staff_service_exclusions x JOIN staff s ON s.id = x.staff_id WHERE s.business_id = ?",
+    bizId,
+  );
+  const map = new Map<number, Set<number>>();
+  for (const r of rows) map.set(r.staff_id, (map.get(r.staff_id) ?? new Set()).add(r.service_id));
+  return map;
+}
+
+export function offWeekdays(staff: Pick<Staff, "off_weekdays">): number[] {
+  return staff.off_weekdays ? staff.off_weekdays.split(",").map(Number) : [];
+}
+
+/** 可以做這項服務的在職人員；傳入 date 時再排除當天固定休假的人 */
+export function eligibleStaff(bizId: number, serviceId: number, date?: string): Staff[] {
+  const excluded = serviceExclusions(bizId);
+  const wd = date ? weekdayOf(date) : -1;
+  return activeStaff(bizId).filter((s) => !excluded.get(s.id)?.has(serviceId) && !offWeekdays(s).includes(wd));
+}
+
 function busyMap(bizId: number, date: string): Map<number, Interval[]> {
   const rows = all<{ staff_id: number; start_min: number; end_min: number }>(
     "SELECT staff_id, start_min, end_min FROM bookings WHERE business_id = ? AND date = ? AND status IN ('confirmed','completed')",
@@ -47,7 +69,7 @@ export function isClosedDate(bizId: number, date: string): boolean {
 }
 
 export function availableSlots(biz: Business, service: Service, date: string, staffId: number | null): Slot[] {
-  const staff = activeStaff(biz.id).map((s) => s.id);
+  const staff = eligibleStaff(biz.id, service.id, date).map((s) => s.id);
   const staffIds = staffId ? staff.filter((id) => id === staffId) : staff;
   return computeSlots({
     date,
@@ -132,12 +154,13 @@ export function createBooking(input: CreateBookingInput): CreateBookingResult {
         staffId = slot.staffIds[0];
       } else {
         // 店家手動建立：不受營業時間與提前時間限制，只擋同一人員撞期
-        const staff = activeStaff(biz.id);
+        // 店家可以把預約排在人員的固定休假日（加班），但不會排給不做這項服務的人
+        const staff = eligibleStaff(biz.id, service.id);
         const want: Interval = [input.start, input.start + service.duration_min];
         const busy = busyMap(biz.id, input.date);
         const candidates = input.staffId ? staff.filter((s) => s.id === input.staffId) : staff;
         staffId = candidates.find((s) => !(busy.get(s.id) ?? []).some((b) => overlaps(want, b)))?.id;
-        if (!staffId) return { ok: false, error: "該時段服務人員已有其他預約" };
+        if (!staffId) return { ok: false, error: staff.length ? "該時段服務人員已有其他預約" : "沒有可以做這項服務的人員" };
       }
 
       const existing = get<{ id: number }>("SELECT id FROM customers WHERE business_id = ? AND phone = ?", biz.id, phone);

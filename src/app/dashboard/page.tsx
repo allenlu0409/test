@@ -141,6 +141,9 @@ export default async function Overview({ searchParams }: { searchParams: Promise
         </div>
         <div className="flex gap-2">
           <CopyButton text={publicUrl} />
+          <a href={`https://line.me/R/share?text=${encodeURIComponent(`${biz.name} 線上預約：${publicUrl}`)}`} target="_blank" rel="noopener noreferrer" className="btn btn-ghost btn-sm">
+            傳到 LINE
+          </a>
           <Link href={`/b/${biz.slug}`} target="_blank" className="btn btn-ghost btn-sm">
             開啟預約頁
           </Link>

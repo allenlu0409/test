@@ -14,7 +14,7 @@ import { addDays, localMidnightUtc, nowInTz, weekdayOf } from "./time.ts";
 let n = 0;
 function makeBiz(plan = "free", staffCount = 1) {
   n++;
-  const owner = run("INSERT INTO users (email, password_hash, name) VALUES (?, 'x', 'Owner')", `o${n}@example.com`).id;
+  const owner = run("INSERT INTO users (email, password_hash, name, email_verified) VALUES (?, 'x', 'Owner', 1)", `o${n}@example.com`).id;
   const id = run("INSERT INTO businesses (owner_id, name, slug, plan, min_lead_minutes) VALUES (?, ?, ?, ?, 0)", owner, `店${n}`, `shop-${n}`, plan).id;
   seedDefaultHours(id);
   const service = run("INSERT INTO services (business_id, name, duration_min, price) VALUES (?, '剪髮', 60, 800)", id).id;
@@ -190,7 +190,7 @@ test("商家時區的日界線換算成 UTC", () => {
 });
 
 test("訂閱：綠界到期加寬限期後降級；取消訂閱者到期即降級；Stripe 與手動方案不受影響", async () => {
-  const { activatePlan, expireOverdue, addMonth, recordPayment, GRACE_DAYS } = await import("./billing.ts");
+  const { activatePlan, expireOverdue, addMonths, nextRenewal, recordPayment, GRACE_DAYS } = await import("./billing.ts");
   const now = 1_800_000_000;
   const plan = (id: number) => get<{ plan: string }>("SELECT plan FROM businesses WHERE id = ?", id)!.plan;
   const [fresh, lapsed, cancelled, stripe, manual] = Array.from({ length: 5 }, () => makeBiz().biz.id);
@@ -204,15 +204,16 @@ test("訂閱：綠界到期加寬限期後降級；取消訂閱者到期即降�
   const inGrace = makeBiz().biz.id;
   activatePlan(inGrace, "pro", now - 86400, "ecpay");
 
-  assert.equal(expireOverdue(now), 2);
+  assert.equal(expireOverdue(now).length, 2);
   assert.deepEqual([fresh, lapsed, cancelled, stripe, manual, inGrace].map(plan), ["pro", "free", "free", "pro", "pro", "pro"]);
-  assert.equal(expireOverdue(now), 0, "可重複執行");
+  assert.equal(expireOverdue(now).length, 0, "可重複執行");
 
   assert.equal(recordPayment({ businessId: fresh, provider: "ecpay", plan: "pro", amount: 499, reference: "T1", status: "paid" }), true);
   assert.equal(recordPayment({ businessId: fresh, provider: "ecpay", plan: "pro", amount: 499, reference: "T1", status: "paid" }), false, "webhook 重送不重複記帳");
 
   const jan31 = Date.UTC(2027, 0, 31) / 1000;
-  assert.equal(new Date(addMonth(jan31) * 1000).toISOString().slice(0, 10), "2027-02-28");
+  assert.equal(new Date(addMonths(jan31, 1) * 1000).toISOString().slice(0, 10), "2027-02-28");
+  assert.equal(new Date(nextRenewal(jan31, "year") * 1000).toISOString().slice(0, 10), "2028-01-31");
 });
 
 test("刪除帳號會連帶刪除店家所有資料，不留孤兒紀錄，也不影響其他店家", () => {
@@ -238,4 +239,76 @@ test("停權的店家不能收線上預約；清理工作不會刪掉有效的�
   run("INSERT INTO sessions (token_hash, user_id, expires_at) VALUES ('old', ?, ?), ('live', ?, ?)", biz.owner_id, now - 1, biz.owner_id, now + 60_000);
   pruneExpired(now);
   assert.deepEqual(all<{ token_hash: string }>("SELECT token_hash FROM sessions WHERE user_id = ?", biz.owner_id).map((s) => s.token_hash), ["live"]);
+});
+
+test("人員的服務範圍與固定休假：不做的服務約不到、休假日約不到，店家仍可手動排", async () => {
+  const { eligibleStaff } = await import("./booking.ts");
+  const { biz, service, staff } = makeBiz("pro", 2);
+  const [a, b] = staff;
+  const other = run("INSERT INTO services (business_id, name, duration_min, price) VALUES (?, '染髮', 60, 2000)", biz.id).id;
+  const date = openDay();
+  run("INSERT INTO staff_service_exclusions (staff_id, service_id) VALUES (?, ?)", b, other);
+  run("UPDATE staff SET off_weekdays = ? WHERE id = ?", String(weekdayOf(date)), a);
+
+  assert.deepEqual(eligibleStaff(biz.id, other).map((s) => s.id), [a]);
+  assert.deepEqual(eligibleStaff(biz.id, service, date).map((s) => s.id), [b], "a 當天休假");
+  assert.deepEqual(eligibleStaff(biz.id, other, date), [], "a 休假、b 不做染髮");
+
+  const online = (serviceId: number, staffId: number | null) => createBooking({ biz, serviceId, staffId, date, start: 600, source: "online", ...who(serviceId * 10 + (staffId ?? 0)) });
+  assert.equal(online(other, null).ok, false, "當天沒有人能做染髮");
+  assert.equal(online(service, a).ok, false, "指定休假的人");
+  const ok = online(service, null);
+  assert.ok(ok.ok && ok.booking.staff_id === b);
+  // 店家手動：可以排在休假日，但不能排給不做這項服務的人
+  assert.ok(createBooking({ biz, serviceId: other, staffId: a, date, start: 720, source: "manual", ...who(90) }).ok);
+  assert.equal(createBooking({ biz, serviceId: other, staffId: b, date, start: 840, source: "manual", ...who(91) }).ok, false);
+});
+
+test("額度通知：八成與額滿各寄一次；沒驗證信箱的店家不寄", async () => {
+  const { notifyQuota, notifyBilling } = await import("./notify.ts");
+  const { biz, service, staff } = makeBiz();
+  const customer = run("INSERT INTO customers (business_id, name, phone) VALUES (?, 'x', '0900000001')", biz.id).id;
+  const add = (k: number) => {
+    for (let i = 0; i < k; i++) run("INSERT INTO bookings (business_id, service_id, staff_id, customer_id, date, start_min, end_min, token) VALUES (?, ?, ?, ?, '2020-01-01', 0, 60, ?)", biz.id, service, staff[0], customer, crypto.randomUUID());
+  };
+  const subjects = () => all<{ subject: string }>("SELECT subject FROM mail_log WHERE recipient = (SELECT email FROM users WHERE id = ?) ORDER BY id", biz.owner_id).map((m) => m.subject);
+  add(10);
+  assert.equal(await notifyQuota(biz.id), null);
+  add(14);
+  assert.equal(await notifyQuota(biz.id), "near");
+  assert.equal(await notifyQuota(biz.id), null, "同一級不重寄");
+  add(6);
+  assert.equal(await notifyQuota(biz.id), "full");
+  assert.equal(await notifyQuota(biz.id), null);
+  assert.equal(subjects().length, 2);
+  assert.match(subjects()[1], /額度已滿/);
+
+  await notifyBilling(biz.id, "failed", 499);
+  assert.match(subjects()[2], /扣款失敗/);
+  run("UPDATE users SET email_verified = 0 WHERE id = ?", biz.owner_id);
+  await notifyBilling(biz.id, "expired");
+  assert.equal(subjects().length, 3, "未驗證信箱不寄");
+});
+
+test("待終止佇列：失敗會保留並重試，成功才移除；到期降級會把訂閱排入終止", async () => {
+  const { queueEcpayCancel, processEcpayCancellations, pendingEcpayCancels, activatePlan, expireOverdue, GRACE_DAYS } = await import("./billing.ts");
+  run("DELETE FROM ecpay_cancellations");
+  queueEcpayCancel("OLD1", "test");
+  queueEcpayCancel("OLD1", "test again");
+  queueEcpayCancel(null, "ignored");
+  assert.equal(pendingEcpayCancels().length, 1);
+  assert.equal(await processEcpayCancellations(async () => ({ ok: false, message: "timeout" })), 0);
+  assert.deepEqual(pendingEcpayCancels().map((c) => [c.attempts, c.last_error]), [[1, "timeout"]]);
+  assert.equal(await processEcpayCancellations(async () => ({ ok: true, message: "" })), 1);
+  assert.equal(pendingEcpayCancels().length, 0);
+
+  const now = 1_900_000_000;
+  const lapsed = makeBiz().biz.id;
+  const cancelled = makeBiz().biz.id;
+  activatePlan(lapsed, "pro", now - (GRACE_DAYS + 1) * 86400, "ecpay");
+  activatePlan(cancelled, "pro", now - 60, "ecpay");
+  run("UPDATE businesses SET ecpay_trade_no = 'LAPSED' WHERE id = ?", lapsed);
+  run("UPDATE businesses SET ecpay_trade_no = 'DONE', cancel_at_period_end = 1 WHERE id = ?", cancelled);
+  expireOverdue(now);
+  assert.deepEqual(pendingEcpayCancels().map((c) => c.trade_no), ["LAPSED"], "已由店家取消的不用再終止");
 });

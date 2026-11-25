@@ -126,7 +126,7 @@ export default async function BookingsPage({ searchParams }: { searchParams: Pro
           <Link
             key={k}
             href={`/dashboard/bookings?tab=${k}`}
-            className={`-mb-px border-b-2 px-4 py-2.5 text-sm font-medium ${tab === k ? "border-brand text-brand-dark" : "border-transparent text-muted hover:text-ink"}`}
+            className={`-mb-px border-b-2 px-4 py-2.5 text-sm font-medium ${tab === k ? "border-ink font-bold text-ink" : "border-transparent text-muted hover:text-ink"}`}
           >
             {label}
           </Link>
@@ -136,9 +136,9 @@ export default async function BookingsPage({ searchParams }: { searchParams: Pro
       {rows.length === 0 ? (
         <p className="panel p-8 text-center text-sm text-muted">這裡目前沒有預約。</p>
       ) : (
-        <ul className="space-y-2.5">
+        <ul className="panel divide-y divide-line">
           {rows.map((b) => (
-            <li key={b.id} className="panel flex flex-wrap items-center gap-x-5 gap-y-3 p-4">
+            <li key={b.id} className="flex flex-wrap items-center gap-x-5 gap-y-2 px-5 py-3.5">
               <div className="tnum w-28 shrink-0">
                 <p className="text-sm font-semibold">{fmtDateShort(b.date)}</p>
                 <p className="text-sm text-muted">
@@ -170,7 +170,7 @@ export default async function BookingsPage({ searchParams }: { searchParams: Pro
               </div>
               {b.status === "confirmed" && (
                 <details className="w-full">
-                  <summary className="inline-block text-sm font-medium text-brand hover:underline">改期</summary>
+                  <summary className="inline-block text-sm text-muted underline underline-offset-4 hover:text-ink">改期</summary>
                   <ActionForm action={rescheduleBooking} submit="確認改期" submitClass="btn btn-ghost btn-sm self-end" className="mt-2 flex flex-wrap items-end gap-3">
                     <input type="hidden" name="id" value={b.id} />
                     <div>

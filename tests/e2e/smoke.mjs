@@ -36,6 +36,14 @@ async function main() {
     await p.click('button:has-text("開好預約頁")');
   };
 
+  /** 從寄信紀錄取出驗證連結並打開（測試環境不會真的寄信） */
+  const verifyEmail = async (p, email) => {
+    await p.waitForTimeout(300);
+    const body = sql("SELECT body FROM mail_log WHERE recipient = ? AND subject LIKE '歡迎%' ORDER BY id DESC", email)[0].body;
+    await p.goto(body.match(/http\S+\/verify\/[\w-]+/)[0].replace(/^https?:\/\/[^/]+/, B));
+    return (await p.locator("h1").innerText()).includes("確認好了");
+  };
+
   console.log("\n# 首頁與示範店家");
   const d = await open();
   await d.goto(B);
@@ -70,6 +78,10 @@ async function main() {
   await u.click('button:has-text("開好預約頁")');
   await u.waitForURL("**/dashboard?welcome=1");
   check("新店家看到引導清單", (await u.locator("h2:has-text('開始收預約')").count()) === 1);
+  check("未驗證信箱時有提示", (await u.locator("text=還沒確認信箱").count()) === 1);
+  check("點信中的連結完成驗證", await verifyEmail(u, "yun@example.com"));
+  await u.goto(`${B}/dashboard`);
+  check("驗證後提示消失", (await u.locator("text=還沒確認信箱").count()) === 0);
   await shot(u, "new-dashboard");
   await u.goto(`${B}/dashboard/staff`);
   check("免費版人員上限提示", (await u.locator("text=想再加一位夥伴").count()) === 1);
@@ -77,17 +89,31 @@ async function main() {
   await u.goto(`${B}/dashboard/billing`);
   await u.click('button:has-text("升級專業版")');
   await u.waitForURL("**status=switched");
+  await u.click("text=年繳（付 10 個月");
+  await u.click('button:has-text("改為年繳")');
+  await u.waitForURL("**status=switched");
+  check("可改為年繳", sql("SELECT billing_cycle FROM businesses WHERE slug = 'yun-nail'")[0].billing_cycle === "year" && (await u.locator("text=/NT\\$4,990/").count()) >= 1);
   await u.goto(`${B}/dashboard/staff`);
   await u.fill("#new-staff-name", "阿美");
   await u.click('button:has-text("新增")');
   await u.waitForSelector("text=已新增人員");
   check("升級後可新增人員", true);
+  // 阿美不做「睫毛嫁接」
+  const amei = u.locator("li", { has: u.locator('input[value="阿美"]') });
+  await amei.locator("label:has-text('睫毛嫁接') input").uncheck();
+  await amei.locator('button:has-text("儲存")').click();
+  await amei.locator("text=已儲存").waitFor();
+  check("人員的服務範圍已儲存", sql("SELECT COUNT(*) AS n FROM staff_service_exclusions")[0].n === 1);
 
   console.log("\n# 客人預約（手機）");
   const m = await open({ viewport: { width: 390, height: 844 }, isMobile: true });
   await m.goto(`${B}/b/yun-nail`);
   check("結構化資料", (await m.locator('script[type="application/ld+json"]').innerText()).includes("LocalBusiness"));
+  await m.click("text=睫毛嫁接");
+  check("不做該服務的人員不會出現在選項", (await m.locator('button[aria-pressed]:has-text("阿美")').count()) === 0);
+  await m.click('button:has-text("修改")');
   await m.click("text=手部單色凝膠");
+  check("會做的服務才列出該人員", (await m.locator('button[aria-pressed]:has-text("阿美")').count()) === 1);
   const days = m.locator('button[aria-label*="月"]:not([disabled])');
   await days.nth(2).click();
   await m.locator("button.tnum.rounded-lg").nth(2).click();
@@ -186,6 +212,8 @@ async function main() {
   const a = await open();
   await signup(a, "營運", ADMIN, "營運測試店", "ops-shop", "other");
   await a.waitForURL("**/dashboard?welcome=1");
+  check("管理者信箱未驗證前進不了營運後台", (await a.goto(`${B}/admin`)).status() === 404);
+  await verifyEmail(a, ADMIN);
   await a.goto(`${B}/admin`);
   check("管理者可進營運後台", (await a.locator("text=每月經常性收入").count()) === 1);
   await shot(a, "admin");
@@ -199,6 +227,9 @@ async function main() {
   await a.click('button:has-text("立即備份")');
   await a.waitForSelector("text=/已建立今天的備份|今天已經備份過了/");
   check("備份檔已產生", existsSync(path.join(dir, "backups")) && readdirSync(path.join(dir, "backups")).some((x) => x.endsWith(".db")));
+  const dl = await a.request.get(`${B}/admin/backup`);
+  check("管理者可下載備份", dl.status() === 200 && (await dl.body()).subarray(0, 15).toString() === "SQLite format 3");
+  check("非管理者不能下載備份", (await d.request.get(`${B}/admin/backup`)).status() === 404);
   check("稽核紀錄", sql("SELECT action FROM audit_log").map((r) => r.action).includes("suspend"));
 
   console.log("\n# 刪除帳號");
@@ -208,11 +239,12 @@ async function main() {
   await f.fill("#del-confirm", "yun-nail");
   await f.click('button:has-text("永久刪除帳號")');
   await f.click('button:has-text("最後確認")');
-  await f.waitForURL("**/?deleted=1");
+  await f.waitForURL("**/login?deleted=1");
   check("帳號與店家資料已刪除", sql("SELECT 1 FROM businesses WHERE slug = 'yun-nail'").length === 0 && sql("SELECT 1 FROM bookings b JOIN businesses s ON s.id = b.business_id WHERE s.slug = 'yun-nail'").length === 0);
   check("刪除後預約頁為 404", (await f.goto(`${B}/b/yun-nail`)).status() === 404);
 
   console.log("\n# 端點防護");
+  check("備份拉取端點未設密鑰時關閉", (await d.request.get(`${B}/api/cron/backup`)).status() === 503);
   check("排程端點未設密鑰時關閉", (await d.request.post(`${B}/api/cron/reminders`)).status() === 503);
   check("Stripe webhook 未設密鑰時關閉", (await d.request.post(`${B}/api/stripe/webhook`, { data: "{}" })).status() === 503);
   const h = (await d.request.get(B)).headers();

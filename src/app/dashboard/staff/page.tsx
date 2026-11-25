@@ -1,13 +1,17 @@
 import Link from "next/link";
 import { ActionForm } from "@/components/form";
 import { requireBusiness } from "@/lib/auth";
-import { all, type Staff } from "@/lib/db";
+import { all, type Service, type Staff } from "@/lib/db";
+import { offWeekdays, serviceExclusions } from "@/lib/booking";
+import { WEEKDAYS } from "@/lib/time";
 import { planOf } from "@/lib/plans";
 import { archiveStaff, saveStaff, toggleStaff } from "../actions";
 
 export default async function StaffPage() {
   const { biz } = await requireBusiness();
   const staff = all<Staff>("SELECT * FROM staff WHERE business_id = ? AND archived = 0 ORDER BY id", biz.id);
+  const services = all<Service>("SELECT * FROM services WHERE business_id = ? AND archived = 0 ORDER BY id", biz.id);
+  const excluded = serviceExclusions(biz.id);
   const plan = planOf(biz.plan);
   const full = staff.length >= plan.maxStaff;
 
@@ -38,6 +42,30 @@ export default async function StaffPage() {
                 </label>
                 <input id={`st${s.id}-title`} name="title" maxLength={40} defaultValue={s.title} className="input" />
               </div>
+              <input type="hidden" name="settings" value="1" />
+              <fieldset className="w-full">
+                <legend className="label">提供的服務</legend>
+                <div className="flex flex-wrap gap-x-5 gap-y-1.5">
+                  {services.map((v) => (
+                    <label key={v.id} className="flex items-center gap-2 text-sm">
+                      <input type="checkbox" name="svc" value={v.id} defaultChecked={!excluded.get(s.id)?.has(v.id)} className="size-4 accent-brand" />
+                      {v.name}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+              <fieldset className="w-full">
+                <legend className="label">每週固定休假</legend>
+                <div className="flex flex-wrap gap-x-5 gap-y-1.5">
+                  {[1, 2, 3, 4, 5, 6, 0].map((wd) => (
+                    <label key={wd} className="flex items-center gap-2 text-sm">
+                      <input type="checkbox" name="off" value={wd} defaultChecked={offWeekdays(s).includes(wd)} className="size-4 accent-brand" />
+                      週{WEEKDAYS[wd]}
+                    </label>
+                  ))}
+                </div>
+                <p className="hint">店休日不用勾。勾選的日子客人約不到這位人員，你仍可以手動幫他排預約。</p>
+              </fieldset>
             </ActionForm>
             <div className="mt-3 flex gap-2">
               <ActionForm action={toggleStaff} submit={s.active ? "設為休假（暫停接單）" : "恢復接單"} submitClass="btn btn-ghost btn-sm">

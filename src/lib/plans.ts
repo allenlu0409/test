@@ -114,3 +114,12 @@ export const CATEGORY_TEMPLATES: Record<string, { name: string; duration: number
   ],
   other: [{ name: "一般預約", duration: 60, price: 1000, description: "" }],
 };
+
+export type Cycle = "month" | "year";
+
+/** 年繳：付 10 個月用 12 個月 */
+export const YEARLY_MONTHS_CHARGED = 10;
+
+export function priceFor(plan: Plan, cycle: Cycle): number {
+  return cycle === "year" ? PLANS[plan].price * YEARLY_MONTHS_CHARGED : PLANS[plan].price;
+}

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ActionForm } from "@/components/form";
 import { Logo } from "@/components/brand";
-import { monthlyRecurringRevenue } from "@/lib/billing";
+import { monthlyRecurringRevenue, pendingEcpayCancels } from "@/lib/billing";
 import { all, get } from "@/lib/db";
 import { dbStats } from "@/lib/maintenance";
 import { PLANS, PLAN_ORDER, planOf } from "@/lib/plans";
@@ -63,7 +63,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
      FROM businesses b JOIN users u ON u.id = b.owner_id WHERE u.email != ?`,
     DEMO_EMAIL,
   )!;
-  const mrr = monthlyRecurringRevenue(Object.fromEntries(PLAN_ORDER.map((p) => [p, PLANS[p].price])), DEMO_EMAIL);
+  const mrr = monthlyRecurringRevenue(DEMO_EMAIL);
   const collected = get<{ n: number | null }>("SELECT SUM(amount) AS n FROM payments WHERE status = 'paid' AND created_at >= datetime('now', '-30 days')")!.n ?? 0;
   const mailFails = get<{ n: number }>("SELECT COUNT(*) AS n FROM mail_log WHERE status LIKE 'failed%' AND created_at >= datetime('now', '-7 days')")!.n;
   const payments = all<{ name: string; plan: string; amount: number; status: string; provider: string; created_at: string }>(
@@ -71,6 +71,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   );
   const audits = all<{ actor: string; action: string; detail: string; created_at: string }>("SELECT actor, action, detail, created_at FROM audit_log ORDER BY id DESC LIMIT 12");
   const stats = dbStats();
+  const stuck = pendingEcpayCancels();
   const conversion = totals.shops ? Math.round((totals.paid / totals.shops) * 100) : 0;
 
   return (
@@ -84,6 +85,20 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           回我的店家後台
         </Link>
       </header>
+
+      {stuck.length > 0 && (
+        <section className="border border-danger/40 bg-danger-soft p-4 text-sm text-danger">
+          <h2 className="font-bold">有 {stuck.length} 筆綠界定期定額還沒成功終止</h2>
+          <p className="mt-1">系統每 10 分鐘會自動重試。超過一天仍在這裡的，請到綠界廠商後台手動停用，避免店家被重複扣款。</p>
+          <ul className="tnum mt-2 space-y-0.5">
+            {stuck.map((c) => (
+              <li key={c.trade_no}>
+                {c.trade_no}・{c.reason}・已試 {c.attempts} 次{c.last_error ? `・${c.last_error}` : ""}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="每月經常性收入（MRR）" value={fmtMoney(mrr)} sub={`近 30 天實收 ${fmtMoney(collected)}`} />
@@ -183,7 +198,12 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
         <section className="panel p-5">
           <div className="flex items-center justify-between">
             <h2 className="font-bold">資料庫與備份</h2>
-            <ActionForm action={backupNow} submit="立即備份" submitClass="btn btn-ghost btn-sm" inline />
+            <div className="flex items-center gap-2">
+              <a href="/admin/backup" className="btn btn-ghost btn-sm">
+                下載最新備份
+              </a>
+              <ActionForm action={backupNow} submit="立即備份" submitClass="btn btn-ghost btn-sm" inline />
+            </div>
           </div>
           <dl className="tnum mt-3 grid grid-cols-[auto_1fr] gap-x-6 gap-y-1 text-sm">
             <dt className="text-muted">資料庫大小</dt>

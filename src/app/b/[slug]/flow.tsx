@@ -10,8 +10,18 @@ interface Svc {
   duration: string;
   price: string;
 }
+interface StaffOpt {
+  id: number;
+  name: string;
+  title: string;
+  /** 不提供的服務 id */
+  skips: number[];
+  /** 固定休假的星期 */
+  off: number[];
+}
 interface Day {
   date: string;
+  wdn: number;
   wd: string;
   day: number;
   month: number;
@@ -40,7 +50,7 @@ function Step({ n, title, done, summary, onEdit, children }: { n: number; title:
   );
 }
 
-export function BookingFlow({ slug, services, staff, days, notice }: { slug: string; services: Svc[]; staff: { id: number; name: string; title: string }[]; days: Day[]; notice: string }) {
+export function BookingFlow({ slug, services, staff, days, notice }: { slug: string; services: Svc[]; staff: StaffOpt[]; days: Day[]; notice: string }) {
   const [step, setStep] = useState(1);
   const [serviceId, setServiceId] = useState<number | null>(null);
   const [staffId, setStaffId] = useState<number | null>(null);
@@ -56,6 +66,9 @@ export function BookingFlow({ slug, services, staff, days, notice }: { slug: str
   const [pending, startTransition] = useTransition();
 
   const service = services.find((s) => s.id === serviceId);
+  // 只列出會做這項服務的人
+  const team = staff.filter((s) => !serviceId || !s.skips.includes(serviceId));
+  const chosen = team.find((s) => s.id === staffId);
   const day = days.find((d) => d.date === date);
 
   useEffect(() => {
@@ -113,6 +126,7 @@ export function BookingFlow({ slug, services, staff, days, notice }: { slug: str
                   type="button"
                   onClick={() => {
                     setServiceId(s.id);
+                    if (staff.find((x) => x.id === staffId)?.skips.includes(s.id)) setStaffId(null);
                     setStart(null);
                     setStep(2);
                   }}
@@ -140,11 +154,11 @@ export function BookingFlow({ slug, services, staff, days, notice }: { slug: str
       >
         {step === 2 && (
           <div className="space-y-5">
-            {staff.length > 1 && (
+            {team.length > 1 && (
               <div>
                 <p className="label">指定服務人員</p>
                 <div className="flex flex-wrap gap-2">
-                  {[{ id: 0, name: "不指定", title: "" }, ...staff].map((s) => {
+                  {[{ id: 0, name: "不指定", title: "" }, ...team].map((s) => {
                     const on = (staffId ?? 0) === s.id;
                     return (
                       <button
@@ -169,7 +183,8 @@ export function BookingFlow({ slug, services, staff, days, notice }: { slug: str
             <div>
               <p className="label">日期</p>
               <div className="-mx-5 flex gap-1.5 overflow-x-auto px-5 pb-2">
-                {days.map((d) => {
+                {days.map((raw) => {
+                  const d = chosen?.off.includes(raw.wdn) ? { ...raw, off: true } : raw;
                   const on = d.date === date;
                   return (
                     <button
@@ -186,7 +201,7 @@ export function BookingFlow({ slug, services, staff, days, notice }: { slug: str
                         on ? "border-(--bc) bg-(--bc) text-(--bt)" : d.off ? "border-transparent text-muted/40" : "border-line hover:border-(--bc)"
                       }`}
                     >
-                      <span className="block text-[11px] opacity-80">{d.day === 1 || d === days[0] ? `${d.month}月` : `週${d.wd}`}</span>
+                      <span className="block text-[11px] opacity-80">{d.day === 1 || raw === days[0] ? `${d.month}月` : `週${d.wd}`}</span>
                       <span className="block text-lg font-bold leading-tight">{d.day}</span>
                       <span className="block text-[10px] opacity-70">{d.off ? "休" : d.day === 1 || d === days[0] ? `週${d.wd}` : " "}</span>
                     </button>

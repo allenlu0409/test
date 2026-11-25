@@ -1,10 +1,13 @@
+import { Operator } from "../operator";
+
+export const dynamic = "force-dynamic";
 export const metadata = { title: "隱私權政策" };
 
 export default function Privacy() {
   return (
     <>
       <h1>隱私權政策</h1>
-      <p className="rounded-xl bg-sun-soft p-3 text-sm text-[#6b4700]">這是一份範本，正式營運前請依你的公司資料與法律顧問意見修訂。</p>
+      <Operator />
       <h2>我們蒐集哪些資料</h2>
       <ul>
         <li>店家：姓名、Email、店家資訊，以及付款所需的帳單資料（由金流服務商處理，我們不儲存卡號）。</li>
@@ -23,9 +26,9 @@ export default function Privacy() {
       <h2>Cookie</h2>
       <p>我們只使用登入所必需的 Cookie，不使用廣告追蹤。</p>
       <h2>資料保存與刪除</h2>
-      <p>帳號存續期間我們會保存你的資料。你可以隨時要求刪除帳號，我們會在 30 天內移除相關資料，但依法須保存的交易紀錄除外。</p>
+      <p>帳號存續期間我們會保存你的資料。你可以隨時在後台自行刪除帳號，資料會立即從系統移除；備份中的副本最多再保留 30 天，依法須保存的交易紀錄除外。</p>
       <h2>聯絡我們</h2>
-      <p>對本政策有任何疑問，請透過客服信箱與我們聯繫。</p>
+      <p>對本政策有任何疑問，或要行使查詢、更正、刪除個人資料的權利，請寫信到本頁開頭的聯絡信箱。</p>
     </>
   );
 }

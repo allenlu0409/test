@@ -14,6 +14,7 @@ import { baseUrl, requireBusiness } from "@/lib/auth";
 import { str } from "@/lib/formdata";
 import type { FormState } from "@/components/form";
 
+const sha = (t: string) => crypto.createHash("sha256").update(t).digest("hex");
 const DUMMY_HASH = hashPassword("not-a-real-password");
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$/;
@@ -36,6 +37,7 @@ export async function signup(_: FormState, data: FormData): Promise<FormState> {
   } catch {
     return { error: "這個 Email 已經註冊過，請直接登入" }; // 重複送出時撞到 UNIQUE
   }
+  await sendVerification({ id, email, name });
   await createSession(id);
   redirect("/onboarding");
 }
@@ -97,7 +99,26 @@ export async function createBusiness(_: FormState, data: FormData): Promise<Form
   redirect("/dashboard?welcome=1");
 }
 
-const sha = (t: string) => crypto.createHash("sha256").update(t).digest("hex");
+/** 寄出歡迎信與信箱驗證連結（24 小時有效） */
+async function sendVerification(user: { id: number; email: string; name: string }): Promise<void> {
+  const token = crypto.randomBytes(32).toString("base64url");
+  run("DELETE FROM email_verifications WHERE user_id = ? OR expires_at < ?", user.id, Date.now());
+  run("INSERT INTO email_verifications (token_hash, user_id, expires_at) VALUES (?, ?, ?)", sha(token), user.id, Date.now() + 86400_000);
+  await sendMail({
+    to: user.email,
+    subject: "歡迎使用約好｜請確認你的信箱",
+    text: `${user.name} 你好，\n\n歡迎使用約好。請點下面的連結確認這是你的信箱，之後有新預約、客人取消時我們才會寄通知給你：\n${await baseUrl()}/verify/${token}\n\n連結 24 小時內有效。如果不是你本人註冊，請忽略這封信。`,
+  });
+}
+
+export async function resendVerification(): Promise<FormState> {
+  const { user } = await requireBusiness();
+  if (user.email_verified) return { ok: "信箱已經驗證過了" };
+  if (!hit(`verify:${user.id}`, 3, 3600_000)) return { error: "寄送太頻繁，請一小時後再試，並檢查垃圾信匣" };
+  await sendVerification(user);
+  return { ok: `已重新寄到 ${user.email}` };
+}
+
 
 export async function requestPasswordReset(_: FormState, data: FormData): Promise<FormState> {
   const email = str(data, "email", 120).toLowerCase();
@@ -127,7 +148,8 @@ export async function resetPassword(_: FormState, data: FormData): Promise<FormS
   if (!row) return { error: "連結已失效或已使用過，請重新申請" };
 
   tx(() => {
-    run("UPDATE users SET password_hash = ? WHERE id = ?", hashPassword(password), row.user_id);
+    // 能收到重設信就證明信箱是本人的
+    run("UPDATE users SET password_hash = ?, email_verified = 1 WHERE id = ?", hashPassword(password), row.user_id);
     run("DELETE FROM password_resets WHERE user_id = ?", row.user_id);
     run("DELETE FROM sessions WHERE user_id = ?", row.user_id); // 登出所有裝置
   });

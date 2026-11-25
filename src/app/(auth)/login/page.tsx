@@ -6,10 +6,12 @@ import { demoLogin, login } from "@/app/actions/auth";
 
 export const metadata = { title: "登入" };
 
-export default async function LoginPage() {
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ deleted?: string }> }) {
   if (await currentUser()) redirect("/dashboard");
+  const deleted = (await searchParams).deleted === "1";
   return (
     <>
+      {deleted && <p role="status" className="mb-4 border border-ink/15 bg-paper p-3 text-sm">帳號與所有資料已刪除。謝謝你用過約好。</p>}
       <h1 className="text-2xl font-bold">登入後台</h1>
       <ActionForm action={login} className="mt-6 space-y-4" submit="登入" submitClass="btn btn-primary w-full py-3">
         <div>

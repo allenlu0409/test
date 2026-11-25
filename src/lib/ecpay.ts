@@ -2,7 +2,7 @@
 // 流程：瀏覽器帶表單 POST 到綠界付款頁 → 首次授權結果打到 ReturnURL → 之後每期扣款結果打到 PeriodReturnURL。
 import crypto from "node:crypto";
 import type { Plan } from "./db.ts";
-import { PLANS } from "./plans.ts";
+import { PLANS, priceFor, type Cycle } from "./plans.ts";
 import { appUrl } from "./stripe.ts";
 
 export interface EcpayConfig {
@@ -56,28 +56,30 @@ function tradeDate(at: Date): string {
   return `${g("year")}/${g("month")}/${g("day")} ${g("hour")}:${g("minute")}:${g("second")}`;
 }
 
-/** 產生送往綠界付款頁的表單欄位（每月扣款一次，最多 99 期，約 8 年） */
-export function buildCheckout(opts: { plan: Plan; businessId: number; tradeNo: string; at?: Date }, cfg: EcpayConfig = ecpayConfig()) {
-  const plan = PLANS[opts.plan];
+/** 產生送往綠界付款頁的表單欄位。月繳每月扣一次（最多 99 期），年繳每年扣一次（最多 9 期） */
+export function buildCheckout(opts: { plan: Plan; cycle?: Cycle; businessId: number; tradeNo: string; at?: Date }, cfg: EcpayConfig = ecpayConfig()) {
+  const cycle = opts.cycle ?? "month";
+  const amount = String(priceFor(opts.plan, cycle));
   const fields: Record<string, string> = {
     MerchantID: cfg.merchantId,
     MerchantTradeNo: opts.tradeNo,
     MerchantTradeDate: tradeDate(opts.at ?? new Date()),
     PaymentType: "aio",
-    TotalAmount: String(plan.price),
+    TotalAmount: amount,
     TradeDesc: "約好預約系統訂閱",
-    ItemName: `約好${plan.name}（每月）`,
+    ItemName: `約好${PLANS[opts.plan].name}（${cycle === "year" ? "年繳" : "每月"}）`,
     ReturnURL: `${appUrl()}/api/ecpay/notify`,
     ChoosePayment: "Credit",
     EncryptType: "1",
-    PeriodAmount: String(plan.price),
-    PeriodType: "M",
+    PeriodAmount: amount,
+    PeriodType: cycle === "year" ? "Y" : "M",
     Frequency: "1",
-    ExecTimes: "99",
+    ExecTimes: cycle === "year" ? "9" : "99",
     PeriodReturnURL: `${appUrl()}/api/ecpay/period`,
     ClientBackURL: `${appUrl()}/dashboard/billing?status=pending`,
     CustomField1: String(opts.businessId),
     CustomField2: opts.plan,
+    CustomField3: cycle,
   };
   fields.CheckMacValue = checkMacValue(fields, cfg.hashKey, cfg.hashIV);
   return { action: `${cfg.host}/Cashier/AioCheckOut/V5`, fields };
