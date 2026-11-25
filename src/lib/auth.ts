@@ -73,5 +73,13 @@ export async function requireAdmin(): Promise<User> {
   const user = await currentUser();
   // 必須驗證過信箱：否則任何人搶先用管理者的 Email 註冊就能進後台
   if (!user || !user.email_verified || !isAdminEmail(user.email)) notFound();
+  // 營運後台能動到所有店家，管理者一律要開兩步驟驗證（ADMIN_REQUIRE_2FA=off 可關閉，不建議）
+  if (!user.totp_enabled && process.env.ADMIN_REQUIRE_2FA !== "off") redirect("/dashboard/settings?need2fa=1");
   return user;
+}
+
+/** 登出這位使用者的其他裝置，保留目前這個登入（不動 Cookie，所以不會觸發頁面重新整理） */
+export async function destroyOtherSessions(userId: number): Promise<void> {
+  const token = (await cookies()).get(COOKIE)?.value;
+  run("DELETE FROM sessions WHERE user_id = ? AND token_hash != ?", userId, token ? sha(token) : "");
 }

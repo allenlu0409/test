@@ -2,7 +2,7 @@
 // 用法：npm run build && npm run e2e      （需要 Playwright：npm i -D playwright && npx playwright install chromium）
 import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
-import { boot, chromium, reporter } from "./harness.mjs";
+import { boot, chromium, reporter, totp } from "./harness.mjs";
 
 const SHOTS = process.env.E2E_SHOTS;
 const ADMIN = "admin@example.com";
@@ -51,7 +51,7 @@ async function main() {
   await shot(d, "landing");
   await d.click("text=先看示範店家的後台");
   await d.waitForURL("**/dashboard");
-  for (const p of ["bookings", "calendar", "customers", "services", "staff", "hours", "settings", "billing"]) {
+  for (const p of ["bookings", "calendar", "customers", "services", "staff", "hours", "settings", "billing", "help"]) {
     await d.goto(`${B}/dashboard/${p}`);
     check(`示範後台 /${p}`, (await d.locator("h1").count()) === 1);
     await shot(d, `dash-${p}`);
@@ -161,6 +161,18 @@ async function main() {
   await fill();
   await u.waitForSelector("p[role=alert]");
   check("同人員同時段撞期被擋", (await alertText(u)).includes("已有其他預約"));
+  // 客人自己改期 → 通知店家
+  await m.goto(manageUrl);
+  await m.click("text=改時間");
+  await m.waitForURL("**/reschedule");
+  await m.locator('button[aria-label*="月"]:not([disabled])').nth(4).click();
+  await m.locator("button.tnum.rounded-lg").nth(1).click();
+  await m.click('button:has-text("改到")');
+  await m.waitForURL("**moved=1");
+  await m.waitForTimeout(500);
+  const movedTo = sql("SELECT date FROM bookings WHERE token = ?", manageUrl.split("/").pop())[0].date;
+  check("客人可以自己改期", movedTo !== booked.date && (await m.locator("text=改好了").count()) === 1);
+  check("客人改期會通知店家", sql("SELECT subject FROM mail_log ORDER BY id DESC LIMIT 1")[0].subject.startsWith("客人改期"));
   // 客人取消 → 通知店家
   await m.goto(manageUrl);
   await m.click('button:has-text("取消預約")');
@@ -214,6 +226,31 @@ async function main() {
   await a.waitForURL("**/dashboard?welcome=1");
   check("管理者信箱未驗證前進不了營運後台", (await a.goto(`${B}/admin`)).status() === 404);
   await verifyEmail(a, ADMIN);
+  await a.goto(`${B}/admin`);
+  check("管理者要先開兩步驟驗證", a.url().includes("need2fa=1") && (await a.locator("text=進入營運後台前").count()) === 1);
+  await a.click('button:has-text("開始設定")');
+  await a.waitForSelector("#totp-code");
+  const secret = sql("SELECT totp_secret FROM users WHERE email = ?", ADMIN)[0].totp_secret;
+  await a.fill("#totp-code", "000000");
+  await a.click('button:has-text("啟用")');
+  await a.waitForSelector("p[role=alert]");
+  check("錯誤的驗證碼不能啟用", sql("SELECT totp_enabled FROM users WHERE email = ?", ADMIN)[0].totp_enabled === 0);
+  await a.fill("#totp-code", totp(secret));
+  await a.click('button:has-text("啟用")');
+  await a.waitForSelector("text=備用碼");
+  check("啟用後顯示備用碼", sql("SELECT totp_enabled FROM users WHERE email = ?", ADMIN)[0].totp_enabled === 1);
+  // 重新登入要驗證碼
+  await a.context().clearCookies();
+  await a.goto(`${B}/login`);
+  await a.fill("#email", ADMIN);
+  await a.fill("#password", "password123");
+  await a.click('button:has-text("登入")');
+  await a.waitForSelector("p[role=alert]");
+  check("開啟後只有密碼不能登入", (await alertText(a)).includes("兩步驟驗證"));
+  await a.click("summary:has-text('我有開啟兩步驟驗證')");
+  await a.fill("#code", totp(secret));
+  await a.click('button:has-text("登入")');
+  await a.waitForURL("**/dashboard");
   await a.goto(`${B}/admin`);
   check("管理者可進營運後台", (await a.locator("text=每月經常性收入").count()) === 1);
   await shot(a, "admin");

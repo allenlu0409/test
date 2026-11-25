@@ -6,7 +6,8 @@ import { notifyCancelled } from "@/lib/notify";
 import { ActionForm, type FormState } from "@/components/form";
 import { StatusBadge } from "@/components/brand";
 import { get, run, BOOKING_JOIN, type BookingRow, type Business } from "@/lib/db";
-import { diffDays, fmtDateLong, fmtDuration, fmtMoney, fmtTime, nowInTz } from "@/lib/time";
+import { fmtDateLong, fmtDuration, fmtMoney, fmtTime } from "@/lib/time";
+import { isUpcoming } from "@/lib/booking";
 
 export const metadata = { title: "預約明細", robots: { index: false } };
 export const dynamic = "force-dynamic";
@@ -15,9 +16,7 @@ function load(token: string) {
   const booking = get<BookingRow>(`${BOOKING_JOIN} WHERE b.token = ?`, token);
   if (!booking) return null;
   const biz = get<Business>("SELECT * FROM businesses WHERE id = ?", booking.business_id)!;
-  const now = nowInTz(biz.timezone);
-  const minutesAhead = diffDays(booking.date, now.date) * 1440 + booking.start_min - now.minutes;
-  return { booking, biz, upcoming: minutesAhead > 0 };
+  return { booking, biz, upcoming: isUpcoming(booking, biz.timezone) };
 }
 
 async function cancel(_: FormState, data: FormData): Promise<FormState> {
@@ -34,12 +33,14 @@ async function cancel(_: FormState, data: FormData): Promise<FormState> {
   return { ok: "" };
 }
 
-export default async function BookingDetail({ params, searchParams }: { params: Promise<{ token: string }>; searchParams: Promise<{ new?: string }> }) {
+export default async function BookingDetail({ params, searchParams }: { params: Promise<{ token: string }>; searchParams: Promise<{ new?: string; moved?: string }> }) {
   const { token } = await params;
   const found = load(token);
   if (!found) notFound();
   const { booking: b, biz, upcoming } = found;
-  const isNew = (await searchParams).new === "1" && b.status === "confirmed";
+  const sp = await searchParams;
+  const isNew = sp.new === "1" && b.status === "confirmed";
+  const moved = sp.moved === "1" && b.status === "confirmed";
   const canCancel = b.status === "confirmed" && upcoming;
 
   return (
@@ -51,6 +52,11 @@ export default async function BookingDetail({ params, searchParams }: { params: 
         </div>
       ) : (
         <h1 className="text-2xl font-black">預約明細</h1>
+      )}
+      {moved && (
+        <p role="status" className="mt-4 border border-ink/15 bg-brand-soft p-3 text-sm font-medium text-brand-dark">
+          改好了，新的時間如下。店家已經收到通知。
+        </p>
       )}
 
       <section className="panel mt-6 p-6">
@@ -99,6 +105,11 @@ export default async function BookingDetail({ params, searchParams }: { params: 
         <Link href={`/b/${biz.slug}`} className="btn btn-ghost">
           {b.status === "confirmed" ? "再約一次" : "重新預約"}
         </Link>
+        {canCancel && (
+          <Link href={`/booking/${token}/reschedule`} className="btn btn-ghost">
+            改時間
+          </Link>
+        )}
         {canCancel && (
           <ActionForm action={cancel} submit="取消預約" submitClass="btn btn-danger" confirmText="確定要取消嗎？" className="ml-auto">
             <input type="hidden" name="token" value={token} />

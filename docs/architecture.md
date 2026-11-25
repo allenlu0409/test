@@ -37,7 +37,9 @@ src/lib/               商業規則（不依賴 Next，可直接單元測試）
   ecpay-events.ts      綠界回呼的處理邏輯
   stripe.ts            Stripe：結帳、客戶入口、webhook 簽章
   notify.ts mail.ts    通知內容與寄送
-  jobs.ts              定期工作入口（提醒、到期、清理、備份）
+  jobs.ts              定期工作入口（提醒、到期、清理、備份、引導信、異常通知）
+  alerts.ts drip.ts    給營運者的異常通知與週報、給新店家的引導信
+  totp.ts              兩步驟驗證
   maintenance.ts       清理、備份、用量統計
   auth.ts              登入狀態、後台與營運後台的守門
   ratelimit.ts         限流
@@ -49,7 +51,7 @@ src/app/
   dashboard/           店家後台
   admin/               營運後台（你用的）
   api/                 時段查詢、金流回呼、排程、健康檢查
-src/components/        共用元件（ActionForm、Logo、StatusBadge）
+src/components/        共用元件（ActionForm、SlotPicker、Logo、StatusBadge）
 src/proxy.ts           進入點限流
 tests/e2e/             瀏覽器端對端測試
 deploy/                VPS 部署檔、還原步驟
@@ -82,8 +84,8 @@ deploy/                VPS 部署檔、還原步驟
 ```bash
 npm install
 npm run dev            # http://localhost:3000，首頁可一鍵進示範店家
-npm run check          # 型別 + 29 個單元／整合測試 + 建置
-npm run build && npm run e2e   # 74 項瀏覽器端對端檢查
+npm run check          # 型別 + 35 個單元／整合測試 + 建置
+npm run build && npm run e2e   # 81 項瀏覽器端對端檢查
 ```
 
 - 開發環境沒設金流金鑰時會進入「示範模式」（升級按鈕直接切換方案），沒設寄信金鑰時信件內容印在終端機並寫入 `mail_log` 表。

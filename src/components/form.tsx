@@ -65,7 +65,7 @@ export function ActionForm({
         </p>
       )}
       {state?.ok && (
-        <p role="status" className={`${inline ? "ml-2 inline" : "mt-3"} text-sm font-medium text-brand`}>
+        <p role="status" className={`${inline ? "ml-2 inline" : "mt-3 whitespace-pre-line"} text-sm font-medium text-brand`}>
           {state.ok}
         </p>
       )}

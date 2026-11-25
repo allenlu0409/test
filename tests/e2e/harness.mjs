@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { DatabaseSync } from "node:sqlite";
+import crypto from "node:crypto";
 
 export const { chromium } = createRequire(import.meta.url)("playwright");
 
@@ -70,4 +71,17 @@ export function reporter(stop) {
       process.exit(failures.length ? 1 : 0);
     },
   };
+}
+
+/** 依密鑰算出目前的 TOTP 驗證碼（測試裡扮演手機上的驗證器 App） */
+export function totp(secret, at = Date.now()) {
+  const A = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  let bits = "";
+  for (const c of secret) bits += A.indexOf(c).toString(2).padStart(5, "0");
+  const key = Buffer.from(bits.match(/.{8}/g).map((b) => parseInt(b, 2)));
+  const counter = Buffer.alloc(8);
+  counter.writeBigUInt64BE(BigInt(Math.floor(at / 30000)));
+  const h = crypto.createHmac("sha1", key).update(counter).digest();
+  const o = h[h.length - 1] & 15;
+  return String((((h[o] & 127) << 24) | (h[o + 1] << 16) | (h[o + 2] << 8) | h[o + 3]) % 1e6).padStart(6, "0");
 }

@@ -10,8 +10,11 @@ import { seedDefaultHours } from "@/lib/booking";
 import { ensureDemo } from "@/lib/seed";
 import crypto from "node:crypto";
 import { sendMail } from "@/lib/mail";
-import { baseUrl, requireBusiness } from "@/lib/auth";
+import { baseUrl, destroyOtherSessions, requireBusiness } from "@/lib/auth";
 import { str } from "@/lib/formdata";
+import { newBackupCodes, newSecret, useBackupCode, verifyTotp } from "@/lib/totp";
+import { DEMO_EMAIL } from "@/lib/seed";
+import { revalidatePath } from "next/cache";
 import type { FormState } from "@/components/form";
 
 const sha = (t: string) => crypto.createHash("sha256").update(t).digest("hex");
@@ -53,6 +56,13 @@ export async function login(_: FormState, data: FormData): Promise<FormState> {
   // 帳號不存在時也做一次雜湊比對，避免從回應時間猜出哪些 Email 有註冊
   const valid = verifyPassword(password, user?.password_hash ?? DUMMY_HASH);
   if (!user || !valid) return { error: "Email 或密碼不正確" };
+  if (user.totp_enabled && user.totp_secret) {
+    const code = str(data, "code", 20);
+    if (!code) return { error: "這個帳號開啟了兩步驟驗證，請在下方輸入驗證器上的 6 位數驗證碼" };
+    const left = verifyTotp(user.totp_secret, code) ? null : useBackupCode(JSON.parse(user.totp_backup) as string[], code);
+    if (!verifyTotp(user.totp_secret, code) && !left) return { error: "驗證碼不正確。請確認手機時間正確，或改用備用碼" };
+    if (left) run("UPDATE users SET totp_backup = ? WHERE id = ?", JSON.stringify(left), user.id);
+  }
   await createSession(user.id);
   redirect(businessOf(user.id) ? "/dashboard" : "/onboarding");
 }
@@ -169,4 +179,37 @@ export async function changePassword(_: FormState, data: FormData): Promise<Form
   });
   await createSession(user.id);
   return { ok: "密碼已更新，其他裝置已登出" };
+}
+
+// ── 兩步驟驗證 ────────────────────────────────────────
+/** 產生密鑰（尚未生效），設定頁會顯示 QR Code 讓使用者掃描 */
+export async function startTotp(): Promise<FormState> {
+  const { user } = await requireBusiness();
+  if (user.email === DEMO_EMAIL) return { error: "示範帳號無法設定" };
+  if (user.totp_enabled) return { error: "已經啟用了" };
+  run("UPDATE users SET totp_secret = ? WHERE id = ?", newSecret(), user.id);
+  revalidatePath("/dashboard/settings");
+  return { ok: "" };
+}
+
+/** 輸入驗證器上的驗證碼，確認掃描成功後才正式啟用 */
+export async function enableTotp(_: FormState, data: FormData): Promise<FormState> {
+  const { user } = await requireBusiness();
+  if (!user.totp_secret || user.totp_enabled) return { error: "請重新開始設定" };
+  if (!hit(`totp:${user.id}`, 10, 600_000)) return { error: "嘗試次數過多，請 10 分鐘後再試" };
+  if (!verifyTotp(user.totp_secret, str(data, "code", 20))) return { error: "驗證碼不正確，請輸入驗證器上目前顯示的 6 位數" };
+  const { codes, hashes } = newBackupCodes();
+  run("UPDATE users SET totp_enabled = 1, totp_backup = ? WHERE id = ?", JSON.stringify(hashes), user.id);
+  await destroyOtherSessions(user.id); // 其他裝置要用驗證碼重新登入
+  // 不重新整理頁面，讓備用碼留在畫面上（只顯示這一次）
+  return { ok: `兩步驟驗證已啟用。請把這 8 組備用碼抄下來，手機不在身邊時可以用，每組只能用一次：\n${codes.join("　")}` };
+}
+
+export async function disableTotp(_: FormState, data: FormData): Promise<FormState> {
+  const { user } = await requireBusiness();
+  if (!user.totp_enabled) return { error: "尚未啟用" };
+  if (!verifyPassword(String(data.get("password") ?? ""), user.password_hash)) return { error: "密碼不正確" };
+  run("UPDATE users SET totp_enabled = 0, totp_secret = NULL, totp_backup = '[]' WHERE id = ?", user.id);
+  revalidatePath("/dashboard/settings");
+  return { ok: "已關閉兩步驟驗證" };
 }

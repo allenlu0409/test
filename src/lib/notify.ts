@@ -96,13 +96,23 @@ export async function notifyCancelled(bookingId: number, by: "customer" | "merch
   }
 }
 
-export async function notifyRescheduled(bookingId: number): Promise<void> {
+export async function notifyRescheduled(bookingId: number, by: "merchant" | "customer" = "merchant"): Promise<void> {
   const c = load(bookingId);
-  if (!c?.customerEmail) return;
+  if (!c) return;
+  if (by === "customer") {
+    if (!c.ownerEmail) return;
+    await sendMail({
+      to: c.ownerEmail,
+      subject: `客人改期：${c.b.customer_name}｜改到 ${fmtDateLong(c.b.date)} ${fmtTime(c.b.start_min)}`,
+      text: `${c.b.customer_name}（${c.b.customer_phone}）自己把預約改了時間：\n\n服務：${c.b.service_name}\n新的時間：${when(c.b)}\n服務人員：${c.b.staff_name}\n\n原本的時段已重新開放。到後台查看：${appUrl()}/dashboard/bookings`,
+    });
+    return;
+  }
+  if (!c.customerEmail) return;
   await sendMail({
     to: c.customerEmail,
     subject: `預約時間已更改｜${c.biz.name} ${fmtDateLong(c.b.date)} ${fmtTime(c.b.start_min)}`,
-    text: `${c.b.customer_name} 你好，店家調整了你的預約時間，新的時間如下：\n\n${details(c)}\n\n時間不方便嗎？可以在這裡取消後重新預約：${manageLink(c.b)}`,
+    text: `${c.b.customer_name} 你好，店家調整了你的預約時間，新的時間如下：\n\n${details(c)}\n\n時間不方便嗎？可以在這裡改期或取消：${manageLink(c.b)}`,
   });
 }
 

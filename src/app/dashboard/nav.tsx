@@ -13,6 +13,7 @@ const ITEMS = [
   ["/dashboard/hours", "營業時間"],
   ["/dashboard/settings", "店家設定"],
   ["/dashboard/billing", "方案與帳單"],
+  ["/dashboard/help", "使用說明"],
 ] as const;
 
 export function Nav() {

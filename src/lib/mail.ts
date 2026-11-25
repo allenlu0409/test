@@ -26,6 +26,8 @@ export async function sendMail(mail: Mail): Promise<boolean> {
           to: [mail.to],
           subject: mail.subject,
           text: mail.text,
+          // 店家直接回信會寄到客服信箱
+          ...(process.env.SUPPORT_EMAIL ? { reply_to: process.env.SUPPORT_EMAIL } : {}),
         }),
         signal: AbortSignal.timeout(8000),
       });

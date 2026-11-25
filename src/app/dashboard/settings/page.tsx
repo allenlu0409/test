@@ -3,13 +3,17 @@ import { ActionForm, CopyButton } from "@/components/form";
 import { baseUrl, requireBusiness } from "@/lib/auth";
 import { planOf } from "@/lib/plans";
 import { saveSettings } from "../actions";
-import { changePassword } from "@/app/actions/auth";
+import QRCode from "qrcode";
+import { changePassword, disableTotp, enableTotp, startTotp } from "@/app/actions/auth";
+import { otpauthUri } from "@/lib/totp";
 import { deleteAccount } from "../actions";
 import { DEMO_EMAIL } from "@/lib/seed";
 
-export default async function SettingsPage() {
+export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ need2fa?: string }> }) {
+  const need2fa = (await searchParams).need2fa === "1";
   const { biz, user } = await requireBusiness();
   const plan = planOf(biz.plan);
+  const totpQr = user.totp_secret && !user.totp_enabled ? await QRCode.toDataURL(otpauthUri(user.totp_secret, user.email), { margin: 1, width: 220 }) : null;
   const publicUrl = `${await baseUrl()}/b/${biz.slug}`;
 
   return (
@@ -91,6 +95,13 @@ export default async function SettingsPage() {
             </p>
           </div>
         </div>
+        <label className="flex items-start gap-2 text-sm sm:col-span-2">
+          <input type="checkbox" name="tips" defaultChecked={!biz.tips_off} className="mt-1 size-4 accent-brand" />
+          <span>
+            收到使用建議信
+            <span className="block text-muted">剛開店還沒收到預約時，我們會寄幾封信教你怎麼把連結放出去。預約與帳務通知不受這個設定影響。</span>
+          </span>
+        </label>
         <div className="sm:col-span-2" />
       </ActionForm>
 
@@ -119,6 +130,47 @@ export default async function SettingsPage() {
           </ActionForm>
         )}
       </section>
+      {user.email !== DEMO_EMAIL && (
+        <section className="panel p-5" id="two-step">
+          <h2 className="font-bold">
+            兩步驟驗證 {user.totp_enabled ? <span className="badge ml-1 bg-brand-soft text-brand">已啟用</span> : null}
+          </h2>
+          {need2fa && !user.totp_enabled && <p className="mt-2 border border-ink/15 bg-sun-soft p-3 text-sm text-[#6b4700]">進入營運後台前，請先開啟兩步驟驗證。</p>}
+          <p className="mt-1 text-sm text-muted">登入時除了密碼，還要輸入手機驗證器 App（Google Authenticator、1Password 等）上的 6 位數驗證碼。密碼外洩時，別人也進不來。</p>
+          {user.totp_enabled ? (
+            <ActionForm action={disableTotp} resetOnOk submit="關閉兩步驟驗證" submitClass="btn btn-ghost self-end" confirmText="確定關閉？" className="mt-4 flex flex-wrap items-end gap-3">
+              <div className="min-w-40 flex-1 sm:max-w-xs">
+                <label className="label" htmlFor="totp-off-pw">
+                  輸入密碼以關閉
+                </label>
+                <input id="totp-off-pw" name="password" type="password" autoComplete="current-password" required className="input" />
+              </div>
+            </ActionForm>
+          ) : totpQr ? (
+            <div className="mt-4 flex flex-wrap items-start gap-5">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={totpQr} alt="用驗證器 App 掃描這個 QR Code" width={160} height={160} className="border border-line" />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm">
+                  一、用驗證器 App 掃描左邊的 QR Code。無法掃描時，手動輸入這組密鑰：
+                  <code className="tnum mt-1 block break-all bg-paper px-2 py-1 text-xs">{user.totp_secret}</code>
+                </p>
+                <ActionForm action={enableTotp} submit="啟用" submitClass="btn btn-primary self-end" className="mt-3 flex flex-wrap items-end gap-3">
+                  <div>
+                    <label className="label" htmlFor="totp-code">
+                      二、輸入 App 上顯示的 6 位數
+                    </label>
+                    <input id="totp-code" name="code" inputMode="numeric" autoComplete="one-time-code" required maxLength={7} className="input tnum w-40" />
+                  </div>
+                </ActionForm>
+              </div>
+            </div>
+          ) : (
+            <ActionForm action={startTotp} submit="開始設定" submitClass="btn btn-ghost mt-4" />
+          )}
+        </section>
+      )}
+
       {user.email !== DEMO_EMAIL && (
         <section className="panel border-danger/30 p-5">
           <h2 className="font-bold text-danger">刪除帳號</h2>

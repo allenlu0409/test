@@ -255,13 +255,14 @@ export async function saveSettings(_: FormState, data: FormData): Promise<FormSt
   let color = str(data, "brand_color", 7).toLowerCase();
   if (!/^#[0-9a-f]{6}$/.test(color) || !planOf(biz.plan).removeBranding) color = biz.brand_color;
   run(
-    "UPDATE businesses SET name = ?, description = ?, phone = ?, address = ?, notice = ?, brand_color = ? WHERE id = ?",
+    "UPDATE businesses SET name = ?, description = ?, phone = ?, address = ?, notice = ?, brand_color = ?, tips_off = ? WHERE id = ?",
     name,
     str(data, "description", 300),
     str(data, "phone", 30),
     str(data, "address", 100),
     str(data, "notice", 300),
     color,
+    data.get("tips") === "on" ? 0 : 1,
     biz.id,
   );
   return done();

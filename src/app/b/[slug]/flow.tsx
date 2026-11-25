@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
+import { DayStrip, SlotGrid, fmtSlot as fmt, useSlots, type Day } from "@/components/slot-picker";
 import { book } from "./actions";
 
 interface Svc {
@@ -19,16 +20,7 @@ interface StaffOpt {
   /** 固定休假的星期 */
   off: number[];
 }
-interface Day {
-  date: string;
-  wdn: number;
-  wd: string;
-  day: number;
-  month: number;
-  off: boolean;
-}
 
-const fmt = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 
 function Step({ n, title, done, summary, onEdit, children }: { n: number; title: string; done: boolean; summary?: string; onEdit?: () => void; children?: React.ReactNode }) {
   return (
@@ -56,8 +48,6 @@ export function BookingFlow({ slug, services, staff, days, notice }: { slug: str
   const [staffId, setStaffId] = useState<number | null>(null);
   const [date, setDate] = useState<string | null>(null);
   const [start, setStart] = useState<number | null>(null);
-  const [slots, setSlots] = useState<number[] | null>(null);
-  const [slotError, setSlotError] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   // 聯絡資料放在 state：回上一步改時間、或時段被搶走重選時，已填的內容不會消失
@@ -71,19 +61,12 @@ export function BookingFlow({ slug, services, staff, days, notice }: { slug: str
   const chosen = team.find((s) => s.id === staffId);
   const day = days.find((d) => d.date === date);
 
-  useEffect(() => {
-    if (!serviceId || !date) return;
-    const ctrl = new AbortController();
-    setSlots(null);
-    setSlotError(false);
-    fetch(`/api/slots?slug=${encodeURIComponent(slug)}&service=${serviceId}&date=${date}${staffId ? `&staff=${staffId}` : ""}`, { signal: ctrl.signal })
-      .then((r) => (r.ok ? r.json() : Promise.reject(r)))
-      .then((j: { slots: number[] }) => setSlots(j.slots))
-      .catch((e) => {
-        if (e?.name !== "AbortError") setSlotError(true);
-      });
-    return () => ctrl.abort();
-  }, [slug, serviceId, staffId, date, reload]);
+  const { slots, failed } = useSlots(
+    serviceId && date ? `/api/slots?slug=${encodeURIComponent(slug)}&service=${serviceId}&date=${date}${staffId ? `&staff=${staffId}` : ""}` : null,
+    reload,
+  );
+  // 指定的人員固定休假的日子，在日期列上標成不可選
+  const shownDays = chosen ? days.map((d) => (chosen.off.includes(d.wdn) ? { ...d, off: true } : d)) : days;
 
   function submit(form: HTMLFormElement) {
     if (!serviceId || !date || start == null) return;
@@ -111,9 +94,6 @@ export function BookingFlow({ slug, services, staff, days, notice }: { slug: str
     });
   }
 
-  const morning = slots?.filter((s) => s < 720) ?? [];
-  const afternoon = slots?.filter((s) => s >= 720 && s < 1080) ?? [];
-  const evening = slots?.filter((s) => s >= 1080) ?? [];
 
   return (
     <div className="space-y-3">
@@ -182,77 +162,28 @@ export function BookingFlow({ slug, services, staff, days, notice }: { slug: str
 
             <div>
               <p className="label">日期</p>
-              <div className="-mx-5 flex gap-1.5 overflow-x-auto px-5 pb-2">
-                {days.map((raw) => {
-                  const d = chosen?.off.includes(raw.wdn) ? { ...raw, off: true } : raw;
-                  const on = d.date === date;
-                  return (
-                    <button
-                      key={d.date}
-                      type="button"
-                      disabled={d.off}
-                      aria-pressed={on}
-                      aria-label={`${d.month} 月 ${d.day} 日 週${d.wd}${d.off ? " 公休" : ""}`}
-                      onClick={() => {
-                        setDate(d.date);
-                        setStart(null);
-                      }}
-                      className={`tnum w-14 shrink-0 rounded-xl border py-2 text-center ${
-                        on ? "border-(--bc) bg-(--bc) text-(--bt)" : d.off ? "border-transparent text-muted/40" : "border-line hover:border-(--bc)"
-                      }`}
-                    >
-                      <span className="block text-[11px] opacity-80">{d.day === 1 || raw === days[0] ? `${d.month}月` : `週${d.wd}`}</span>
-                      <span className="block text-lg font-bold leading-tight">{d.day}</span>
-                      <span className="block text-[10px] opacity-70">{d.off ? "休" : d.day === 1 || d === days[0] ? `週${d.wd}` : " "}</span>
-                    </button>
-                  );
-                })}
-              </div>
+              <DayStrip
+                days={shownDays}
+                date={date}
+                onPick={(d) => {
+                  setDate(d);
+                  setStart(null);
+                }}
+              />
             </div>
 
             {date && (
               <div aria-live="polite">
-                {slotError ? (
-                  <p className="text-sm text-danger">時段載入失敗，請檢查網路後重新選擇日期。</p>
-                ) : slots === null ? (
-                  <p className="text-sm text-muted">正在查詢空檔…</p>
-                ) : slots.length === 0 ? (
-                  <p className="rounded-xl bg-paper p-4 text-sm text-muted">這天已經沒有空檔了，換一天看看。</p>
-                ) : (
-                  <div className="space-y-3">
-                    {(
-                      [
-                        ["上午", morning],
-                        ["下午", afternoon],
-                        ["晚上", evening],
-                      ] as const
-                    ).map(
-                      ([label, list]) =>
-                        list.length > 0 && (
-                          <div key={label}>
-                            <p className="mb-1.5 text-xs text-muted">{label}</p>
-                            <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
-                              {list.map((s) => (
-                                <button
-                                  key={s}
-                                  type="button"
-                                  aria-pressed={start === s}
-                                  onClick={() => {
-                                    setStart(s);
-                                    setError(null);
-                                    setStep(3);
-                                  }}
-                                  className={`tnum rounded-lg border py-2 text-sm font-semibold ${start === s ? "border-(--bc) bg-(--bc) text-(--bt)" : "border-line hover:border-(--bc)"}`}
-                                >
-                                  {fmt(s)}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        ),
-                    )}
-                  </div>
-                )}
+                <SlotGrid
+                  slots={slots}
+                  failed={failed}
+                  start={start}
+                  onPick={(s) => {
+                    setStart(s);
+                    setError(null);
+                    setStep(3);
+                  }}
+                />
               </div>
             )}
             {error && step === 2 && (

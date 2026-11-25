@@ -175,6 +175,12 @@ const MIGRATIONS: string[] = [
      last_error TEXT NOT NULL DEFAULT '',
      created_at TEXT NOT NULL DEFAULT (datetime('now'))
    );`,
+  `CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+   ALTER TABLE businesses ADD COLUMN drip_stage INTEGER NOT NULL DEFAULT 0;
+   ALTER TABLE businesses ADD COLUMN tips_off INTEGER NOT NULL DEFAULT 0;
+   ALTER TABLE users ADD COLUMN totp_secret TEXT;
+   ALTER TABLE users ADD COLUMN totp_enabled INTEGER NOT NULL DEFAULT 0;
+   ALTER TABLE users ADD COLUMN totp_backup TEXT NOT NULL DEFAULT '[]';`,
 ];
 
 function migrate(conn: DatabaseSync): void {
@@ -242,6 +248,10 @@ export interface User {
   name: string;
   password_hash: string;
   email_verified: number;
+  totp_secret: string | null;
+  totp_enabled: number;
+  /** 備用碼的雜湊（JSON 陣列），每個只能用一次 */
+  totp_backup: string;
 }
 
 export interface Business {
@@ -269,6 +279,10 @@ export interface Business {
   cancel_at_period_end: number;
   quota_notified: string;
   billing_cycle: "month" | "year";
+  /** 新店家引導信寄到第幾封 */
+  drip_stage: number;
+  /** 店家關閉了引導與建議信 */
+  tips_off: number;
   created_at: string;
 }
 
@@ -338,3 +352,12 @@ export const BOOKING_JOIN = `
   JOIN staff st ON st.id = b.staff_id
   JOIN customers c ON c.id = b.customer_id
 `;
+
+/** 小型鍵值儲存：排程用來記「上次做到哪」 */
+export function getMeta(key: string): string | undefined {
+  return get<{ value: string }>("SELECT value FROM meta WHERE key = ?", key)?.value;
+}
+
+export function setMeta(key: string, value: string): void {
+  run("INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value", key, value);
+}

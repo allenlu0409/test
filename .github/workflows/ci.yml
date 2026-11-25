@@ -27,3 +27,17 @@ jobs:
           npm install --no-save playwright
           npx playwright install --with-deps chromium
           npm run e2e
+
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t yuehao .
+      - name: Start and check health
+        run: |
+          docker run -d --name yuehao -p 3000:3000 yuehao
+          for i in $(seq 1 30); do curl -fs http://localhost:3000/api/health && break || sleep 1; done
+          curl -fs http://localhost:3000/api/health
+          test "$(docker exec yuehao sh -c 'grep Uid /proc/1/status | cut -f2')" = "1000"

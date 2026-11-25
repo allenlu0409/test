@@ -2,7 +2,7 @@
 import crypto from "node:crypto";
 import { all, get, run, tx, type Booking, type Business, type Service, type Staff } from "./db.ts";
 import { computeSlots, overlaps, type Interval, type Slot } from "./slots.ts";
-import { isDateStr, localMidnightUtc, nowInTz, weekdayOf } from "./time.ts";
+import { addDays, diffDays, isDateStr, localMidnightUtc, nowInTz, weekdayOf, WEEKDAYS } from "./time.ts";
 import { planOf } from "./plans.ts";
 
 export interface DayHours {
@@ -49,11 +49,13 @@ export function eligibleStaff(bizId: number, serviceId: number, date?: string): 
   return activeStaff(bizId).filter((s) => !excluded.get(s.id)?.has(serviceId) && !offWeekdays(s).includes(wd));
 }
 
-function busyMap(bizId: number, date: string): Map<number, Interval[]> {
+/** excludeBookingId：改期時，這筆預約自己原本占的時間不算忙碌 */
+function busyMap(bizId: number, date: string, excludeBookingId = 0): Map<number, Interval[]> {
   const rows = all<{ staff_id: number; start_min: number; end_min: number }>(
-    "SELECT staff_id, start_min, end_min FROM bookings WHERE business_id = ? AND date = ? AND status IN ('confirmed','completed')",
+    "SELECT staff_id, start_min, end_min FROM bookings WHERE business_id = ? AND date = ? AND status IN ('confirmed','completed') AND id != ?",
     bizId,
     date,
+    excludeBookingId,
   );
   const map = new Map<number, Interval[]>();
   for (const r of rows) {
@@ -68,7 +70,7 @@ export function isClosedDate(bizId: number, date: string): boolean {
   return !!get("SELECT 1 AS x FROM closed_dates WHERE business_id = ? AND date = ?", bizId, date);
 }
 
-export function availableSlots(biz: Business, service: Service, date: string, staffId: number | null): Slot[] {
+export function availableSlots(biz: Business, service: Service, date: string, staffId: number | null, excludeBookingId = 0): Slot[] {
   const staff = eligibleStaff(biz.id, service.id, date).map((s) => s.id);
   const staffIds = staffId ? staff.filter((id) => id === staffId) : staff;
   return computeSlots({
@@ -77,7 +79,7 @@ export function availableSlots(biz: Business, service: Service, date: string, st
     hours: hoursOf(biz.id).get(weekdayOf(date)) ?? null,
     interval: biz.slot_interval,
     staffIds,
-    busy: busyMap(biz.id, date),
+    busy: busyMap(biz.id, date, excludeBookingId),
     now: nowInTz(biz.timezone),
     minLeadMinutes: biz.min_lead_minutes,
     maxAdvanceDays: biz.max_advance_days,
@@ -227,4 +229,59 @@ export function conflictsWithOthers(b: Pick<Booking, "id" | "business_id" | "sta
     b.end_min,
     b.start_min,
   );
+}
+
+export interface BookableDay {
+  date: string;
+  wdn: number;
+  wd: string;
+  day: number;
+  month: number;
+  off: boolean;
+}
+
+/** 從今天起可預約的日期列（最多 60 天），店休與臨時公休標為 off */
+export function bookableDays(biz: Business): BookableDay[] {
+  const hours = hoursOf(biz.id);
+  const today = nowInTz(biz.timezone).date;
+  const closed = new Set(all<{ date: string }>("SELECT date FROM closed_dates WHERE business_id = ? AND date >= ?", biz.id, today).map((r) => r.date));
+  return Array.from({ length: Math.min(biz.max_advance_days, 60) + 1 }, (_, i) => {
+    const date = addDays(today, i);
+    const wdn = weekdayOf(date);
+    const h = hours.get(wdn);
+    return { date, wdn, wd: WEEKDAYS[wdn], day: Number(date.slice(8)), month: Number(date.slice(5, 7)), off: !h || h.closed || closed.has(date) };
+  });
+}
+
+/** 預約是否還沒開始（已開始或已過的不能線上取消或改期） */
+export function isUpcoming(b: Pick<Booking, "date" | "start_min">, timezone: string): boolean {
+  const now = nowInTz(timezone);
+  return diffDays(b.date, now.date) * 1440 + b.start_min - now.minutes > 0;
+}
+
+/**
+ * 客人自己改期：只能改「已確認且還沒開始」的預約，新時段必須符合線上預約的所有規則。
+ * 盡量維持原本的服務人員，原人員沒空才換人。
+ */
+export function rescheduleByCustomer(token: string, date: string, start: number): CreateBookingResult {
+  if (!isDateStr(date) || !Number.isInteger(start)) return { ok: false, error: "時間不正確" };
+  try {
+    return tx<CreateBookingResult>(() => {
+      const b = get<Booking>("SELECT * FROM bookings WHERE token = ?", token);
+      if (!b) return { ok: false, error: "找不到這筆預約" };
+      const biz = get<Business>("SELECT * FROM businesses WHERE id = ?", b.business_id)!;
+      if (b.status !== "confirmed" || !isUpcoming(b, biz.timezone)) return { ok: false, error: "這筆預約已無法線上改期，請直接聯繫店家" };
+      if (biz.suspended) return { ok: false, error: "這間店目前暫停線上預約，請直接聯繫店家" };
+      if (b.date === date && b.start_min === start) return { ok: false, error: "這就是原本的時間，請選另一個時段" };
+      const service = get<Service>("SELECT * FROM services WHERE id = ?", b.service_id)!;
+      const slot = availableSlots(biz, service, date, null, b.id).find((s) => s.start === start);
+      if (!slot) return { ok: false, error: "這個時段剛剛被訂走了，請改選其他時段" };
+      const staffId = slot.staffIds.includes(b.staff_id) ? b.staff_id : slot.staffIds[0];
+      run("UPDATE bookings SET date = ?, start_min = ?, end_min = ?, staff_id = ?, reminded = 0 WHERE id = ?", date, start, start + (b.end_min - b.start_min), staffId, b.id);
+      return { ok: true, booking: get<Booking>("SELECT * FROM bookings WHERE id = ?", b.id)! };
+    });
+  } catch (e) {
+    console.error("rescheduleByCustomer failed", e);
+    return { ok: false, error: "系統忙碌中，請稍後再試" };
+  }
 }

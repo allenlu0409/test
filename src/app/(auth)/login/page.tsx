@@ -31,6 +31,15 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           </div>
           <input id="password" name="password" type="password" autoComplete="current-password" required className="input" />
         </div>
+        <details>
+          <summary className="text-sm text-muted hover:text-ink">我有開啟兩步驟驗證</summary>
+          <div className="mt-2">
+            <label className="label" htmlFor="code">
+              驗證碼或備用碼
+            </label>
+            <input id="code" name="code" inputMode="numeric" autoComplete="one-time-code" maxLength={20} className="input tnum" />
+          </div>
+        </details>
       </ActionForm>
       <form action={demoLogin} className="mt-3">
         <button type="submit" className="btn btn-ghost w-full py-3">

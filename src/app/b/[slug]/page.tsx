@@ -1,22 +1,17 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { all, get, type Business } from "@/lib/db";
-import { activeServices, activeStaff, hoursOf, offWeekdays, quotaReached, serviceExclusions } from "@/lib/booking";
+import { get, type Business } from "@/lib/db";
+import { activeServices, activeStaff, bookableDays, hoursOf, offWeekdays, quotaReached, serviceExclusions } from "@/lib/booking";
+import { brandVars } from "@/lib/color";
 import { CATEGORIES, planOf } from "@/lib/plans";
-import { addDays, fmtDuration, fmtMoney, fmtTime, nowInTz, weekdayOf, WEEKDAYS } from "@/lib/time";
+import { fmtDuration, fmtMoney, fmtTime, WEEKDAYS } from "@/lib/time";
 import { BookingFlow } from "./flow";
 
 export const dynamic = "force-dynamic";
 
 function bizBySlug(slug: string) {
   return get<Business>("SELECT * FROM businesses WHERE slug = ?", slug);
-}
-
-/** 依品牌色亮度決定按鈕上的文字用深色或白色，確保對比 */
-function textOn(hex: string): string {
-  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.4 ? "#13211c" : "#ffffff";
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
@@ -37,22 +32,13 @@ export default async function PublicBookingPage({ params }: { params: Promise<{ 
   const services = activeServices(biz.id);
   const staff = activeStaff(biz.id);
   const hours = hoursOf(biz.id);
-  const today = nowInTz(biz.timezone).date;
-  const horizon = Math.min(biz.max_advance_days, 60);
-  const closed = new Set(all<{ date: string }>("SELECT date FROM closed_dates WHERE business_id = ? AND date >= ?", biz.id, today).map((r) => r.date));
-  const days = Array.from({ length: horizon + 1 }, (_, i) => {
-    const date = addDays(today, i);
-    const wd = weekdayOf(date);
-    const h = hours.get(wd);
-    return { date, wdn: wd, wd: WEEKDAYS[wd], day: Number(date.slice(8)), month: Number(date.slice(5, 7)), off: !h || h.closed || closed.has(date) };
-  });
+  const days = bookableDays(biz);
   const excluded = serviceExclusions(biz.id);
   const full = quotaReached(biz);
   const unavailable = !!biz.suspended || full || services.length === 0 || staff.length === 0;
-  const color = plan.removeBranding ? biz.brand_color : "#1d3fae";
 
   return (
-    <div style={{ "--bc": color, "--bt": textOn(color) } as React.CSSProperties} className="min-h-dvh">
+    <div style={brandVars(biz.brand_color, plan.removeBranding) as React.CSSProperties} className="min-h-dvh">
       <script
         type="application/ld+json"
         // 結構化資料：讓搜尋引擎把預約頁辨識為在地商家。「<」轉義避免店家輸入的文字跳出 script
