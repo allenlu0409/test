@@ -9,10 +9,10 @@ import { addDays, localMidnightUtc, fmtDateLong, fmtMoney, fmtTime, nowInTz, wee
 
 function Kpi({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="panel p-4">
-      <p className="text-xs text-muted">{label}</p>
-      <p className="tnum mt-1 text-2xl font-bold">{value}</p>
-      {sub && <p className="mt-0.5 text-xs text-muted">{sub}</p>}
+    <div className="px-5 py-4">
+      <dt className="text-xs text-muted">{label}</dt>
+      <dd className="tnum mt-1 text-2xl font-bold">{value}</dd>
+      {sub && <dd className="mt-0.5 text-xs text-muted">{sub}</dd>}
     </div>
   );
 }
@@ -35,7 +35,7 @@ function RevenueChart({ days }: { days: { date: string; revenue: number }[] }) {
             <div
               key={d.date}
               title={`${d.date}：${fmtMoney(d.revenue)}`}
-              className="relative rounded-t bg-brand/85 hover:bg-brand"
+              className="relative bg-brand hover:bg-brand-dark"
               style={{ height: `${(d.revenue / top) * 100}%`, minHeight: d.revenue ? 3 : 0 }}
             >
               <span className="sr-only">
@@ -127,7 +127,7 @@ export default async function Overview({ searchParams }: { searchParams: Promise
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-sm text-muted">{fmtDateLong(today)}</p>
-          <h1 className="text-2xl font-bold">{biz.name}</h1>
+          <h1 className="font-sans text-2xl font-bold tracking-normal">{biz.name}</h1>
         </div>
         <Link href="/dashboard/bookings?new=1" className="btn btn-primary">
           新增預約
@@ -155,7 +155,7 @@ export default async function Overview({ searchParams }: { searchParams: Promise
           <ol className="mt-3 divide-y divide-line">
             {steps.map(([ok, label, href, cta]) => (
               <li key={label} className="flex items-center gap-3 py-2.5">
-                <span className={`flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${ok ? "bg-brand text-white" : "border border-line text-muted"}`} aria-hidden="true">
+                <span className={`flex size-6 shrink-0 items-center justify-center rounded-[2px] text-xs font-bold ${ok ? "bg-ink text-white" : "border border-ink/40 text-muted"}`} aria-hidden="true">
                   {ok ? "✓" : ""}
                 </span>
                 <span className={`flex-1 text-sm ${ok ? "text-muted line-through" : "font-medium"}`}>{label}</span>
@@ -171,7 +171,7 @@ export default async function Overview({ searchParams }: { searchParams: Promise
       )}
 
       {nearQuota && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-sun-soft p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 border border-ink/15 bg-sun-soft p-4">
           <p className="text-sm text-[#6b4700]">
             <strong>
               本月線上預約已用 {used} / {limit} 筆。
@@ -184,12 +184,12 @@ export default async function Overview({ searchParams }: { searchParams: Promise
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <dl className="panel grid grid-cols-2 divide-line max-lg:[&>*:nth-child(-n+2)]:border-b max-lg:[&>*:nth-child(odd)]:border-r lg:grid-cols-4 lg:divide-x [&>*]:border-line">
         <Kpi label="今日預約" value={`${todays.length} 筆`} />
         <Kpi label="本月已完成營收" value={fmtMoney(month.revenue ?? 0)} sub={`本月預約 ${month.count} 筆`} />
         <Kpi label="本月新顧客" value={`${newCustomers} 位`} />
         <Kpi label="近 30 天未到率" value={`${noShowRate}%`} sub={`${show.missed} 筆未到`} />
-      </div>
+      </dl>
 
       <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
         <section className="panel p-5">

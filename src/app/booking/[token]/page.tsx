@@ -46,11 +46,8 @@ export default async function BookingDetail({ params, searchParams }: { params: 
     <main className="mx-auto max-w-lg px-4 py-10 sm:py-16">
       {isNew ? (
         <div className="text-center">
-          <span className="mx-auto flex size-14 items-center justify-center rounded-full bg-brand text-2xl text-white" aria-hidden="true">
-            ✓
-          </span>
-          <h1 className="mt-4 text-2xl font-black">約好了！</h1>
-          <p className="mt-1 text-sm text-muted">請把這個頁面加入書籤或截圖保存，之後可以從這裡查看或取消預約。</p>
+          <h1 className="stamp stamp-in text-5xl">約好了</h1>
+          <p className="mt-6 text-sm text-muted">請把這個頁面加入書籤或截圖保存，之後可以從這裡查看或取消預約。</p>
         </div>
       ) : (
         <h1 className="text-2xl font-black">預約明細</h1>
@@ -60,7 +57,7 @@ export default async function BookingDetail({ params, searchParams }: { params: 
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-sm text-muted">{biz.name}</p>
-            <p className="mt-0.5 text-lg font-bold">{b.service_name}</p>
+            <p className="mt-0.5 text-xl font-bold">{b.service_name}</p>
           </div>
           <StatusBadge status={b.status} />
         </div>

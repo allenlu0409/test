@@ -13,7 +13,8 @@ export default async function OnboardingPage() {
 
   return (
     <>
-      <h1 className="text-2xl font-bold">{user.name}，來開你的預約頁</h1>
+      <p className="text-sm text-muted">{user.name}，歡迎。</p>
+      <h1 className="mt-1 text-2xl">來開你的預約頁</h1>
       <p className="mt-1 text-sm text-muted">我們會依產業先幫你建好常見服務與營業時間，進後台都能再改。</p>
       <ActionForm action={createBusiness} className="mt-6 space-y-4" submit="開好預約頁" submitClass="btn btn-primary w-full py-3">
         <div>

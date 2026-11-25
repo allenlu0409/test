@@ -24,7 +24,7 @@ function Step({ n, title, done, summary, onEdit, children }: { n: number; title:
   return (
     <section className="panel overflow-hidden">
       <header className="flex items-center gap-3 px-5 py-4">
-        <span className={`tnum flex size-7 shrink-0 items-center justify-center rounded-full text-sm font-bold ${done ? "bg-(--bc) text-(--bt)" : "bg-ink/8 text-ink"}`}>{done ? "✓" : n}</span>
+        <span className={`tnum flex size-7 shrink-0 items-center justify-center rounded-[2px] text-sm font-bold ${done ? "bg-(--bc) text-(--bt)" : "bg-ink/8 text-ink"}`}>{done ? "✓" : n}</span>
         <div className="min-w-0 flex-1">
           <h2 className="font-bold">{title}</h2>
           {done && summary && <p className="truncate text-sm text-muted">{summary}</p>}
@@ -155,7 +155,7 @@ export function BookingFlow({ slug, services, staff, days, notice }: { slug: str
                           setStaffId(s.id || null);
                           setStart(null);
                         }}
-                        className={`rounded-full border px-4 py-1.5 text-sm font-medium ${on ? "border-(--bc) bg-(--bc) text-(--bt)" : "border-line hover:border-(--bc)"}`}
+                        className={`rounded-[3px] border px-4 py-1.5 text-sm font-medium ${on ? "border-(--bc) bg-(--bc) text-(--bt)" : "border-line hover:border-(--bc)"}`}
                       >
                         {s.name}
                         {s.title && <span className="ml-1.5 text-xs opacity-75">{s.title}</span>}

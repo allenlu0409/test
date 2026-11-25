@@ -41,7 +41,7 @@ async function main() {
   await d.goto(B);
   check("首頁標題", (await d.locator("h1").innerText()).includes("客人自己約"));
   await shot(d, "landing");
-  await d.click("text=免註冊，看示範後台");
+  await d.click("text=先看示範店家的後台");
   await d.waitForURL("**/dashboard");
   for (const p of ["bookings", "calendar", "customers", "services", "staff", "hours", "settings", "billing"]) {
     await d.goto(`${B}/dashboard/${p}`);

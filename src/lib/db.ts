@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS businesses (
   phone TEXT NOT NULL DEFAULT '',
   address TEXT NOT NULL DEFAULT '',
   notice TEXT NOT NULL DEFAULT '',
-  brand_color TEXT NOT NULL DEFAULT '#0b6b53',
+  brand_color TEXT NOT NULL DEFAULT '#1d3fae',
   timezone TEXT NOT NULL DEFAULT 'Asia/Taipei',
   slot_interval INTEGER NOT NULL DEFAULT 30,
   min_lead_minutes INTEGER NOT NULL DEFAULT 120,

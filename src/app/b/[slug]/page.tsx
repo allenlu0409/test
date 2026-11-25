@@ -48,7 +48,7 @@ export default async function PublicBookingPage({ params }: { params: Promise<{ 
   });
   const full = quotaReached(biz);
   const unavailable = !!biz.suspended || full || services.length === 0 || staff.length === 0;
-  const color = plan.removeBranding ? biz.brand_color : "#0b6b53";
+  const color = plan.removeBranding ? biz.brand_color : "#1d3fae";
 
   return (
     <div style={{ "--bc": color, "--bt": textOn(color) } as React.CSSProperties} className="min-h-dvh">
@@ -67,11 +67,11 @@ export default async function PublicBookingPage({ params }: { params: Promise<{ 
           }).replace(/</g, "\\u003c"),
         }}
       />
-      <div className="h-2 bg-(--bc)" />
+      <div className="h-1.5 bg-(--bc)" />
       <main className="mx-auto max-w-2xl px-4 py-8 sm:py-12">
         <header>
           <p className="text-sm font-medium text-(--bc)">{CATEGORIES[biz.category] ?? "線上預約"}</p>
-          <h1 className="mt-1 text-3xl font-black tracking-tight">{biz.name}</h1>
+          <h1 className="mt-1 font-sans text-3xl font-black tracking-tight">{biz.name}</h1>
           {biz.description && <p className="mt-3 text-[15px] text-ink/80">{biz.description}</p>}
           <dl className="mt-4 space-y-1 text-sm text-muted">
             {biz.address && (

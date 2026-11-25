@@ -64,8 +64,8 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
             <span className="text-sm font-normal text-muted"> / {Number.isFinite(current.monthlyBookings) ? current.monthlyBookings : "不限"}</span>
           </p>
           {Number.isFinite(current.monthlyBookings) && (
-            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-line" role="presentation">
-              <div className={`h-full rounded-full ${used >= current.monthlyBookings ? "bg-danger" : "bg-brand"}`} style={{ width: `${Math.min(100, (used / current.monthlyBookings) * 100)}%` }} />
+            <div className="mt-2 h-1.5 overflow-hidden bg-line" role="presentation">
+              <div className={`h-full ${used >= current.monthlyBookings ? "bg-danger" : "bg-brand"}`} style={{ width: `${Math.min(100, (used / current.monthlyBookings) * 100)}%` }} />
             </div>
           )}
         </div>

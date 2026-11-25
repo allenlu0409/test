@@ -18,7 +18,7 @@ const ITEMS = [
 export function Nav() {
   const path = usePathname();
   return (
-    <nav className="flex gap-1 overflow-x-auto px-3 pb-2 lg:flex-col lg:overflow-visible lg:px-3 lg:pb-0" aria-label="後台選單">
+    <nav className="flex gap-1 overflow-x-auto px-3 lg:flex-col lg:gap-0.5 lg:overflow-visible lg:px-5" aria-label="後台選單">
       {ITEMS.map(([href, label]) => {
         const active = href === "/dashboard" ? path === href : path.startsWith(href);
         return (
@@ -26,8 +26,8 @@ export function Nav() {
             key={href}
             href={href}
             aria-current={active ? "page" : undefined}
-            className={`shrink-0 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-              active ? "bg-brand text-white" : "text-ink/75 hover:bg-brand-soft hover:text-brand-dark"
+            className={`shrink-0 border-b-2 px-3 py-2 text-sm transition-colors lg:border-b-0 lg:border-l-2 lg:py-1.5 lg:pl-4 ${
+              active ? "border-ink font-bold text-ink" : "border-transparent text-muted hover:text-ink"
             }`}
           >
             {label}
