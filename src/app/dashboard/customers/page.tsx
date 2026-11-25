@@ -16,25 +16,34 @@ interface Row {
   spent: number | null;
   last_visit: string | null;
   missed: number;
+  total: number;
+  locked: number;
 }
 
 export default async function CustomersPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const { biz } = await requireBusiness();
   const q = ((await searchParams).q ?? "").trim().slice(0, 40);
   const like = `%${q.replace(/[%_]/g, "")}%`;
+  // 電話可能被輸入成 0955-111-222，比對時只看數字
+  const digits = q.replace(/\D/g, "");
+  const phoneLike = digits.length >= 3 ? `%${digits}%` : like;
   const rows = all<Row>(
     `SELECT c.id, c.name, c.phone, c.email, c.note,
             COUNT(CASE WHEN b.status = 'completed' THEN 1 END) AS visits,
             SUM(CASE WHEN b.status = 'completed' THEN b.price END) AS spent,
             MAX(CASE WHEN b.status = 'completed' THEN b.date END) AS last_visit,
-            COUNT(CASE WHEN b.status = 'no_show' THEN 1 END) AS missed
+            COUNT(CASE WHEN b.status = 'no_show' THEN 1 END) AS missed,
+            COUNT(b.id) AS total, COALESCE(SUM(b.over_quota), 0) AS locked
      FROM customers c LEFT JOIN bookings b ON b.customer_id = c.id
-     WHERE c.business_id = ? AND c.phone NOT LIKE 'deleted-%' AND (c.name LIKE ? OR c.phone LIKE ?)
+     WHERE c.business_id = ? AND c.phone NOT LIKE 'deleted-%' AND c.phone NOT LIKE 'walkin-%' AND (c.name LIKE ? OR c.phone LIKE ?)
      GROUP BY c.id ORDER BY last_visit DESC NULLS LAST, c.id DESC LIMIT 300`,
     biz.id,
     like,
-    like,
+    phoneLike,
   );
+  // 只在免費額度用完後才出現過的顧客：電話要升級後才顯示
+  const finite = Number.isFinite(planOf(biz.plan).monthlyBookings);
+  const hidden = (c: Row) => finite && c.total > 0 && c.locked === c.total;
   const canExport = planOf(biz.plan).csvExport;
 
   return (
@@ -42,7 +51,7 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">顧客</h1>
-          <p className="mt-1 text-sm text-muted">客人預約時自動建立，以手機號碼辨識同一位客人。</p>
+          <p className="mt-1 text-sm text-muted">客人預約時自動建立，以手機號碼辨識同一位客人。點一下可以寫備註。</p>
         </div>
         {canExport ? (
           <a href="/dashboard/customers/export" className="btn btn-ghost btn-sm">
@@ -69,16 +78,16 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
           {rows.map((c) => (
             <li key={c.id}>
               <details className="group">
-                <summary className="flex list-none flex-wrap items-center gap-x-5 gap-y-1 px-5 py-3">
-                  <span className="min-w-32 flex-1">
+                <summary className="grid list-none grid-cols-[1fr_auto] items-baseline gap-x-4 gap-y-0.5 px-5 py-3">
+                  <span className="min-w-0">
                     <span className="font-medium">{c.name}</span>
-                    {c.missed > 0 && <span className="badge ml-2 bg-sun-soft text-[#8a5a00]">未到 {c.missed} 次</span>}
-                    {c.note && <span className="badge ml-2 bg-brand-soft text-brand-dark">有備註</span>}
-                    <span className="tnum block text-sm text-muted">{c.phone}</span>
+                    {c.missed > 0 && <span className="badge ml-2 bg-sun-soft text-note">未到 {c.missed} 次</span>}
                   </span>
-                  <span className="tnum w-20 text-sm text-muted">來店 {c.visits} 次</span>
-                  <span className="tnum w-24 text-right text-sm font-semibold">{fmtMoney(c.spent ?? 0)}</span>
-                  <span className="tnum w-28 text-right text-sm text-muted">{c.last_visit ? `上次 ${c.last_visit.slice(5).replace("-", "/")}` : "尚未來店"}</span>
+                  <span className="tnum text-right text-sm font-semibold">{fmtMoney(c.spent ?? 0)}</span>
+                  <span className="tnum min-w-0 truncate text-sm text-muted">
+                    {hidden(c) ? "升級後顯示電話" : c.phone}・來店 {c.visits} 次・{c.last_visit ? `上次 ${c.last_visit.slice(5).replace("-", "/")}` : "尚未來店"}
+                  </span>
+                  <span className="text-right text-sm text-brand group-open:hidden">{c.note ? "看備註" : "寫備註"}</span>
                 </summary>
                 <ActionForm action={saveCustomerNote} submit="儲存備註" submitClass="btn btn-ghost btn-sm mt-2" className="border-t border-line bg-paper/60 px-5 py-4">
                   <input type="hidden" name="id" value={c.id} />

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { get, type Business } from "@/lib/db";
-import { activeServices, activeStaff, bookableDays, hoursOf, offWeekdays, quotaReached, serviceExclusions } from "@/lib/booking";
+import { activeServices, activeStaff, bookableDays, hoursOf, offWeekdays, serviceExclusions } from "@/lib/booking";
 import { brandVars } from "@/lib/color";
 import { CATEGORIES, planOf } from "@/lib/plans";
 import { fmtDuration, fmtMoney, fmtTime, WEEKDAYS } from "@/lib/time";
@@ -34,8 +34,7 @@ export default async function PublicBookingPage({ params }: { params: Promise<{ 
   const hours = hoursOf(biz.id);
   const days = bookableDays(biz);
   const excluded = serviceExclusions(biz.id);
-  const full = quotaReached(biz);
-  const unavailable = !!biz.suspended || full || services.length === 0 || staff.length === 0;
+  const unavailable = !!biz.suspended || services.length === 0 || staff.length === 0;
 
   return (
     <div style={brandVars(biz.brand_color, plan.removeBranding) as React.CSSProperties} className="min-h-dvh">
@@ -83,7 +82,7 @@ export default async function PublicBookingPage({ params }: { params: Promise<{ 
         <div className="mt-8">
           {unavailable ? (
             <div className="panel p-6 text-center">
-              <h2 className="font-bold">{full ? "本月線上預約已額滿" : "目前暫停線上預約"}</h2>
+              <h2 className="font-bold">目前暫停線上預約</h2>
               <p className="mt-2 text-sm text-muted">
                 請直接與店家聯繫預約。
                 {biz.phone && (

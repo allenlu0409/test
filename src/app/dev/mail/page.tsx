@@ -1,17 +1,19 @@
 import { notFound } from "next/navigation";
 import { all } from "@/lib/db";
 import { appUrl } from "@/lib/stripe";
+import { devMailboxEnabled } from "@/lib/safety";
 
 export const metadata = { title: "信件檢視（預覽環境）", robots: { index: false } };
 export const dynamic = "force-dynamic";
 
 /**
  * 預覽與驗收用：列出系統產生的每一封信。
- * 只有明確設定 DEV_MAILBOX=1 時才存在；正式環境不要設（信裡有重設密碼連結）。
+ * 只有設定 DEV_MAILBOX=1、而且沒有接上任何真實服務（寄信、金流）時才存在；
+ * 兩者同時出現時伺服器會拒絕啟動（見 lib/safety.ts）。這一頁不需登入，所以預覽伺服器只綁在本機。
  * 接上 Resend 之後信件內文不再寫入資料庫，這一頁只會看到主旨。
  */
 export default function DevMailbox() {
-  if (process.env.DEV_MAILBOX !== "1") notFound();
+  if (!devMailboxEnabled()) notFound();
   const mails = all<{ id: number; recipient: string; subject: string; body: string; status: string; created_at: string }>("SELECT * FROM mail_log ORDER BY id DESC LIMIT 100");
   const origin = appUrl();
 

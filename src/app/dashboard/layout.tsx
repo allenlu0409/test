@@ -49,7 +49,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       </aside>
       <div className="min-w-0">
         {isDemo && (
-          <div className="bg-sun-soft px-4 py-2 text-center text-sm text-[#6b4700]">
+          <div className="bg-sun-soft px-4 py-2 text-center text-sm text-note">
             這是示範店家，資料為虛構且所有訪客共用。{" "}
             <Link href="/signup" className="font-semibold underline underline-offset-2">
               免費開自己的預約頁
@@ -57,7 +57,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           </div>
         )}
         {!isDemo && !user.email_verified && (
-          <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-b border-ink/15 bg-sun-soft px-4 py-2 text-sm text-[#6b4700]">
+          <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-b border-ink/15 bg-sun-soft px-4 py-2 text-sm text-note">
             <span>
               還沒確認信箱 {user.email}，所以新預約通知目前寄不出去。請到信箱點確認連結。
             </span>

@@ -1,29 +1,33 @@
 import Link from "next/link";
 import { Logo } from "@/components/brand";
 import { PLANS, PLAN_ORDER } from "@/lib/plans";
+import { site } from "@/lib/site";
 import { demoLogin } from "./actions/auth";
 
 const BEFORE_AFTER = [
   ["「請問週六下午還有位置嗎？」", "客人打開預約頁就看得到所有空檔，自己選好，不用等你回。"],
   ["晚上十一點才傳來的訊息", "預約頁不打烊。你在睡覺，預約本自己多了一行。"],
   ["紙本、LINE 記事本、腦袋各記一半", "所有預約寫在同一本，每位設計師一欄，不會撞期。"],
-  ["「不好意思我忘記了…」", "預約前一天自動提醒客人，臨時不能來也能自己取消，把時段還給你。"],
+  ["「不好意思我忘記了…」", "有留 Email 的客人，前一天會收到提醒信；你也可以一鍵複製提醒文字貼到 LINE。臨時不能來，客人能自己改期或取消，時段馬上還給你。"],
 ];
 
 const FEATURES = [
   ["預約頁", "一條連結，放在 IG 個人檔案、LINE 官方帳號選單或 Google 商家檔案。也能印成 QR Code 立在櫃檯。"],
   ["價目與時長", "每項服務各自設定要多久、多少錢。客人預約前就清楚，你也不會排到做不完。"],
-  ["每個人一欄", "每位服務人員有自己的行程。同一個時段只會被訂走一次，客人可以指定設計師。"],
-  ["營業時間與公休", "每週固定時段，加上臨時公休。出國進修那幾天直接劃掉。"],
+  ["每個人一欄", "每位服務人員有自己的行程、會做的服務和固定休假。同一個時段只會被訂走一次，客人可以指定設計師。"],
+  ["營業時間與保留時段", "每週固定時段、臨時公休、午休或私事的保留時段，還能在每筆預約之間留整理時間。"],
   ["顧客名單", "自動記下來店次數、消費金額和上次什麼時候來。偏好與禁忌寫在備註裡。"],
   ["月底看帳", "每天做了多少、哪項服務最賺、多少人沒來，打開就看得到。"],
 ];
 
 const FAQ = [
   ["客人需要下載 App 或註冊會員嗎？", "不用。客人打開你的預約連結，選服務、選時間、留姓名電話就完成，全程在手機瀏覽器裡。"],
-  ["免費版可以用多久？", "沒有期限。免費版每月可收 30 筆線上預約、1 位服務人員，預約變多再升級就好。"],
+  ["免費版可以用多久？", "沒有期限。免費版是 1 位服務人員、每月 30 筆線上預約。超過之後客人還是約得進來，你的預約頁不會關；只是新預約的顧客電話要升級後才看得到。"],
+  ["提醒是用 LINE 嗎？", "不是，目前是 Email。客人預約時有留 Email，前一天會收到提醒信。沒留的客人，後台「明天的預約」每一筆都有可以直接複製的提醒文字，貼到你和客人的 LINE 對話就好。客人也可以把預約明細傳到自己的 LINE。"],
+  ["客人都用 LINE 跟我約，怎麼辦？", "把預約連結放在 LINE 裡就好：官方帳號的選單、自動回覆，或直接貼在對話。客人一樣從 LINE 點進來，只是不用等你回。"],
+  ["顧客名單是誰的？你們收掉怎麼辦？", "名單是你的。專業版以上可以隨時把顧客和預約匯出成 Excel 能開的檔案，也可以把整個帳號連同資料刪除。"],
   ["可以隨時取消訂閱嗎？", "可以。在後台的「方案與帳單」隨時取消，當期結束後自動回到免費版，資料都會保留。"],
-  ["客人臨時要改時間怎麼辦？", "每筆預約都有專屬的管理連結，客人可以自行取消後重新預約；你也可以在後台直接幫客人改期。"],
+  ["客人臨時要改時間怎麼辦？", "每筆預約都有專屬的連結，客人可以自己改期或取消，你會收到通知；也可以在後台直接幫客人改。你能設定「開始前幾小時內不能再改」。"],
   ["電話或 LINE 來的預約也能記進來嗎？", "可以。後台能手動新增預約，空檔會同步更新，線上的客人就不會約到同一個時段。"],
 ];
 
@@ -64,7 +68,11 @@ function BookPage() {
   );
 }
 
-export default function Home() {
+export default async function Home({ searchParams }: { searchParams: Promise<{ ref?: string }> }) {
+  // 從店家預約頁點過來的訪客：把介紹來源帶到註冊
+  const ref = ((await searchParams).ref ?? "").replace(/[^a-z0-9-]/g, "").slice(0, 30);
+  const signupHref = ref ? `/signup?ref=${ref}` : "/signup";
+  const { operator, support } = site();
   return (
     <div className="bg-white">
       <header className="sticky top-0 z-20 border-b border-ink/15 bg-white">
@@ -80,7 +88,7 @@ export default function Home() {
             <Link href="/login" className="px-2 py-2 text-sm font-medium underline-offset-4 hover:underline">
               登入
             </Link>
-            <Link href="/signup" className="btn btn-primary btn-sm">
+            <Link href={signupHref} className="btn btn-primary btn-sm">
               免費開始
             </Link>
           </nav>
@@ -90,30 +98,27 @@ export default function Home() {
       <main>
         <section className="mx-auto grid max-w-6xl items-center gap-x-16 gap-y-12 px-4 pb-20 pt-14 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:pt-20">
           <div>
-            <p className="text-sm tracking-wide text-muted">美髮・美甲美睫・教練・工作室的預約本</p>
+            <p className="font-semibold text-brand">給美甲師、美睫師、設計師、教練的預約本</p>
             <h1 className="mt-4 text-[2.9rem] leading-[1.15] sm:text-6xl lg:text-[4.4rem]">
-              客人自己<span className="hl">約好</span>，
+              客人自己<span className="hl">約好</span>
               <br />
-              你專心服務。
+              你專心服務
             </h1>
-            <p className="mt-6 max-w-lg text-lg text-ink/80">不用再一邊上染劑一邊回訊息喬時間。開一個預約頁，客人自己選服務、選時段，你的預約本自己會寫好。</p>
+            <p className="mt-6 max-w-lg text-lg text-ink/80">不用再一邊上染劑一邊回訊息喬時間。開一個預約頁，客人自己選服務、選時段，預約直接記進你的預約本。</p>
             <div className="mt-8 flex flex-wrap items-center gap-3">
-              <Link href="/signup" className="btn btn-primary px-7 py-3 text-base">
+              <Link href={signupHref} className="btn btn-primary px-7 py-3 text-base">
                 免費開一個預約頁
               </Link>
-              <form action={demoLogin}>
-                <button type="submit" className="btn btn-ghost px-7 py-3 text-base">
-                  先看示範店家的後台
-                </button>
-              </form>
-            </div>
-            <p className="mt-4 text-sm text-muted">
-              不用綁卡，三分鐘設定好。也可以
-              <Link href="/b/demo" className="text-ink underline underline-offset-4 hover:text-brand">
-                看看客人看到的預約頁
+              <Link href="/b/demo" className="btn btn-ghost px-7 py-3 text-base">
+                先當客人約一次看看
               </Link>
-              。
-            </p>
+            </div>
+            <p className="mt-4 text-sm text-muted">一個人的店免費用，沒有期限。不用綁卡，客人不用下載 App。</p>
+            <form action={demoLogin} className="mt-1">
+              <button type="submit" className="min-h-11 text-sm text-ink underline underline-offset-4 hover:text-brand">
+                也可以不註冊，直接看示範店家的後台
+              </button>
+            </form>
           </div>
           <BookPage />
         </section>
@@ -195,7 +200,7 @@ export default function Home() {
                     <p className="mt-3 text-[15px] leading-relaxed text-ink/85">{p.features.join("・")}</p>
                   </div>
                   <div className="sm:self-center">
-                    <Link href="/signup" className={`btn w-full sm:w-36 ${id === "pro" ? "btn-primary" : "btn-ghost"}`}>
+                    <Link href={signupHref} className={`btn w-full sm:w-36 ${id === "pro" ? "btn-primary" : "btn-ghost"}`}>
                       {id === "free" ? "免費開始" : "先免費試用"}
                     </Link>
                   </div>
@@ -228,9 +233,9 @@ export default function Home() {
           <h2 className="font-display text-4xl leading-tight sm:text-5xl">
             下一位客人，
             <br />
-            讓他自己約好。
+            自己約好
           </h2>
-          <Link href="/signup" className="btn btn-primary px-8 py-3.5 text-base">
+          <Link href={signupHref} className="btn btn-primary px-8 py-3.5 text-base">
             免費開一個預約頁
           </Link>
           </div>
@@ -238,17 +243,29 @@ export default function Home() {
       </main>
 
       <footer className="border-t border-ink/15">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-8 text-sm text-muted sm:px-6">
-          <Logo />
-          <div className="flex gap-5">
-            <Link href="/terms" className="hover:text-ink">
-              服務條款
-            </Link>
-            <Link href="/privacy" className="hover:text-ink">
-              隱私權政策
-            </Link>
+        <div className="mx-auto max-w-6xl space-y-4 px-4 py-8 text-sm text-muted sm:px-6">
+          {(operator || support) && (
+            <p className="max-w-2xl text-ink/80">
+              {operator && <>約好由 {operator} 在台灣開發與維運。</>}
+              {support && (
+                <>
+                  有問題直接寫信：<span className="font-medium text-ink">{support}</span>
+                </>
+              )}
+            </p>
+          )}
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <Logo />
+            <div className="flex gap-5">
+              <Link href="/terms" className="hover:text-ink">
+                服務條款
+              </Link>
+              <Link href="/privacy" className="hover:text-ink">
+                隱私權政策
+              </Link>
+            </div>
+            <p>© {new Date().getFullYear()} 約好 Yuehao</p>
           </div>
-          <p>© {new Date().getFullYear()} 約好 Yuehao</p>
         </div>
       </footer>
     </div>

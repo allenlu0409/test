@@ -53,7 +53,7 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
       )}
       {status === "cancelled" && <p className="rounded-2xl bg-paper p-4 text-sm text-muted">已取消結帳，方案沒有變更。</p>}
       {demo && (
-        <p className="rounded-2xl bg-sun-soft p-4 text-sm text-[#6b4700]">
+        <p className="rounded-2xl bg-sun-soft p-4 text-sm text-note">
           <strong>示範模式：</strong>還沒設定金流，按下按鈕會直接切換方案、不會扣款。設定綠界金鑰後就是正式的收款流程。
         </p>
       )}
@@ -114,10 +114,10 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
             <section key={id} className="grid gap-x-8 gap-y-3 p-5 sm:grid-cols-[1fr_12rem] sm:items-center">
               <div className="min-w-0">
                 <div className="flex items-baseline gap-3">
-                  <h2 className="font-display text-xl">{biz.plan === id ? <span className="hl">{p.name}</span> : p.name}</h2>
-                  {biz.plan === id && <span className="text-xs text-muted">使用中</span>}
+                  <h2 className="font-display text-xl">{p.name}</h2>
+                  {biz.plan === id && <span className="badge text-brand">使用中</span>}
                   <span className="leader" aria-hidden="true" />
-                  <p className="tnum text-xl font-bold">
+                  <p className="tnum font-display text-xl">
                     NT${priceFor(id, yearly ? "year" : "month").toLocaleString()}
                     <span className="ml-1 text-sm font-normal text-muted">／{yearly ? "年" : "月"}</span>
                   </p>
@@ -143,7 +143,7 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
                     action={changePlan}
                     submit={id === "free" && ending ? "已取消訂閱" : biz.plan === id ? (cycle === "year" ? "改為年繳" : "改為月繳") : isUp ? `升級${p.name}` : subscribed ? "變更方案" : id === "free" && live ? "取消訂閱" : `改用${p.name}`}
                     submitClass={`btn w-full ${isUp ? "btn-primary" : "btn-ghost"}`}
-                    confirmText={isUp || biz.plan === id ? undefined : id === "free" ? "確定取消訂閱？" : "確定降級？"}
+                    confirmText={isUp || biz.plan === id ? undefined : id === "free" ? (live ? "確定取消訂閱？" : "確定改回免費版？") : "確定降級？"}
                   >
                     <input type="hidden" name="plan" value={id} />
                     <input type="hidden" name="cycle" value={cycle} />

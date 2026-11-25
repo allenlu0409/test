@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { DayStrip, SlotGrid, fmtSlot as fmt, useSlots, type Day } from "@/components/slot-picker";
 import { book } from "./actions";
 
@@ -22,28 +22,60 @@ interface StaffOpt {
 }
 
 
-function Step({ n, title, done, summary, onEdit, children }: { n: number; title: string; done: boolean; summary?: string; onEdit?: () => void; children?: React.ReactNode }) {
+const NUM = ["一", "二", "三"];
+
+/** 預約本上的一段：明體編號與標題，做完的步驟收成一行摘要 */
+function Step({ n, title, done, active, summary, onEdit, headRef, children }: { n: number; title: string; done: boolean; active: boolean; summary?: string; onEdit?: () => void; headRef: (el: HTMLHeadingElement | null) => void; children?: React.ReactNode }) {
   return (
-    <section className="panel overflow-hidden">
-      <header className="flex items-center gap-3 px-5 py-4">
-        <span className={`tnum flex size-7 shrink-0 items-center justify-center rounded-[2px] text-sm font-bold ${done ? "bg-(--bc) text-(--bt)" : "bg-ink/8 text-ink"}`}>{done ? "✓" : n}</span>
+    <section className={active || done ? "" : "text-muted"}>
+      <header className="flex items-center gap-3 px-5 py-3.5">
+        <span className={`font-display w-7 shrink-0 text-2xl leading-none ${done || active ? "text-(--bc)" : "text-muted/60"}`} aria-hidden="true">
+          {NUM[n - 1]}
+        </span>
         <div className="min-w-0 flex-1">
-          <h2 className="font-bold">{title}</h2>
+          <h2 ref={headRef} tabIndex={-1} className="font-display text-lg outline-none">
+            <span className="sr-only">第 {n} 步：</span>
+            {title}
+          </h2>
           {done && summary && <p className="truncate text-sm text-muted">{summary}</p>}
         </div>
         {done && onEdit && (
-          <button type="button" onClick={onEdit} className="text-sm font-medium text-(--bc) hover:underline">
+          <button type="button" onClick={onEdit} className="-my-2 -mr-2 flex min-h-11 items-center px-3 text-sm font-medium text-(--bc) underline underline-offset-4">
             修改
           </button>
         )}
       </header>
-      {children && <div className="border-t border-line p-5">{children}</div>}
+      {children && <div className="border-t border-line px-5 pb-5 pt-4">{children}</div>}
     </section>
   );
 }
 
 export function BookingFlow({ slug, services, staff, days, notice }: { slug: string; services: Svc[]; staff: StaffOpt[]; days: Day[]; notice: string }) {
   const [step, setStep] = useState(1);
+  const heads = useRef<(HTMLHeadingElement | null)[]>([]);
+  const moved = useRef(false);
+
+  // 每一步都記進瀏覽器的上一頁紀錄：客人按手機的返回鍵是回到上一步，而不是整頁離開、填的資料全失
+  useEffect(() => {
+    // 保留 history.state 原有的內容（Next.js 的路由狀態存在裡面），否則返回時會被當成換頁而整頁重載
+    history.replaceState({ ...history.state, step: 1 }, "");
+    const onPop = (e: PopStateEvent) => {
+      moved.current = true;
+      setStep(typeof e.state?.step === "number" ? e.state.step : 1);
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+  const go = (n: number) => {
+    moved.current = true;
+    if (n > step) history.pushState({ ...history.state, step: n }, "");
+    else history.replaceState({ ...history.state, step: n }, "");
+    setStep(n);
+  };
+  // 換步驟後把焦點移到那一步的標題，鍵盤與螢幕閱讀器使用者才知道畫面換了
+  useEffect(() => {
+    if (moved.current) heads.current[step - 1]?.focus();
+  }, [step]);
   const [serviceId, setServiceId] = useState<number | null>(null);
   const [staffId, setStaffId] = useState<number | null>(null);
   const [date, setDate] = useState<string | null>(null);
@@ -87,7 +119,7 @@ export function BookingFlow({ slug, services, staff, days, notice }: { slug: str
         // 時段被搶走時回到選時間並重新載入空檔
         if (res.error.includes("時段")) {
           setStart(null);
-          setStep(2);
+          go(2);
           setReload((n) => n + 1);
         }
       }
@@ -96,10 +128,10 @@ export function BookingFlow({ slug, services, staff, days, notice }: { slug: str
 
 
   return (
-    <div className="space-y-3">
-      <Step n={1} title="選擇服務" done={step > 1} summary={service && `${service.name}・${service.duration}・${service.price}`} onEdit={() => setStep(1)}>
+    <div className="divide-y divide-line border border-ink/70 bg-white">
+      <Step n={1} title="選擇服務" done={step > 1} active={step === 1} headRef={(el) => void (heads.current[0] = el)} summary={service && `${service.name}・${service.duration}・${service.price}`} onEdit={() => go(1)}>
         {step === 1 && (
-          <ul className="space-y-2">
+          <ul className="-mt-1 divide-y divide-line">
             {services.map((s) => (
               <li key={s.id}>
                 <button
@@ -108,16 +140,19 @@ export function BookingFlow({ slug, services, staff, days, notice }: { slug: str
                     setServiceId(s.id);
                     if (staff.find((x) => x.id === staffId)?.skips.includes(s.id)) setStaffId(null);
                     setStart(null);
-                    setStep(2);
+                    go(2);
                   }}
-                  className={`flex w-full items-center gap-4 rounded-xl border px-4 py-3 text-left transition-colors hover:border-(--bc) ${serviceId === s.id ? "border-(--bc) bg-paper" : "border-line"}`}
+                  className="group block w-full py-3.5 text-left"
                 >
-                  <span className="min-w-0 flex-1">
-                    <span className="block font-semibold">{s.name}</span>
-                    {s.description && <span className="block text-sm text-muted">{s.description}</span>}
-                    <span className="tnum mt-0.5 block text-sm text-muted">{s.duration}</span>
+                  <span className="flex items-baseline gap-3">
+                    <span className="font-semibold group-hover:text-(--bc)">{s.name}</span>
+                    <span className="leader" aria-hidden="true" />
+                    <span className="tnum font-bold">{s.price}</span>
                   </span>
-                  <span className="tnum shrink-0 font-bold">{s.price}</span>
+                  <span className="mt-0.5 block text-sm text-muted">
+                    <span className="tnum">{s.duration}</span>
+                    {s.description && `・${s.description}`}
+                  </span>
                 </button>
               </li>
             ))}
@@ -129,8 +164,10 @@ export function BookingFlow({ slug, services, staff, days, notice }: { slug: str
         n={2}
         title="選擇時間"
         done={step > 2}
+        active={step === 2}
+        headRef={(el) => void (heads.current[1] = el)}
         summary={day && start != null ? `${day.month}/${day.day}（${day.wd}）${fmt(start)}${staffId ? `・${staff.find((s) => s.id === staffId)?.name}` : ""}` : undefined}
-        onEdit={() => setStep(2)}
+        onEdit={() => go(2)}
       >
         {step === 2 && (
           <div className="space-y-5">
@@ -149,7 +186,7 @@ export function BookingFlow({ slug, services, staff, days, notice }: { slug: str
                           setStaffId(s.id || null);
                           setStart(null);
                         }}
-                        className={`rounded-[3px] border px-4 py-1.5 text-sm font-medium ${on ? "border-(--bc) bg-(--bc) text-(--bt)" : "border-line hover:border-(--bc)"}`}
+                        className={`min-h-11 rounded-[3px] border px-4 text-sm font-medium ${on ? "border-(--bc) bg-(--bc) text-(--bt)" : "border-line hover:border-(--bc)"}`}
                       >
                         {s.name}
                         {s.title && <span className="ml-1.5 text-xs opacity-75">{s.title}</span>}
@@ -181,7 +218,7 @@ export function BookingFlow({ slug, services, staff, days, notice }: { slug: str
                   onPick={(s) => {
                     setStart(s);
                     setError(null);
-                    setStep(3);
+                    go(3);
                   }}
                 />
               </div>
@@ -195,7 +232,7 @@ export function BookingFlow({ slug, services, staff, days, notice }: { slug: str
         )}
       </Step>
 
-      <Step n={3} title="填寫聯絡資料" done={false}>
+      <Step n={3} title="填寫聯絡資料" done={false} active={step === 3} headRef={(el) => void (heads.current[2] = el)}>
         {step === 3 && (
           <form
             className="space-y-4"
@@ -223,6 +260,7 @@ export function BookingFlow({ slug, services, staff, days, notice }: { slug: str
                 Email（選填）
               </label>
               <input id="bk-email" name="email" type="email" {...field("email")} autoComplete="email" className="input" />
+              <p className="hint">填了會寄預約明細給你，前一天也會提醒；之後要改期或取消，信裡就有連結。</p>
             </div>
             <div>
               <label className="label" htmlFor="bk-note">

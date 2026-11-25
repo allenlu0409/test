@@ -6,9 +6,10 @@ import { notifyCancelled, notifyRescheduled } from "@/lib/notify";
 import { redirect } from "next/navigation";
 import { all, get, run, tx, type Booking, type Plan } from "@/lib/db";
 import { destroySession, requireBusiness, verifyPassword } from "@/lib/auth";
-import { conflictsWithOthers, createBooking } from "@/lib/booking";
+import { hit } from "@/lib/ratelimit";
+import { conflictsWithOthers, createBooking, hoursOf, isClosedDate } from "@/lib/booking";
 import { planOf, PLANS, type Cycle } from "@/lib/plans";
-import { isDateStr, parseTime } from "@/lib/time";
+import { isDateStr, parseTime, weekdayOf } from "@/lib/time";
 import { createCheckout, createPortal } from "@/lib/stripe";
 import { activatePlan, activeProvider, downgradeToFree } from "@/lib/billing";
 import { cancelPeriod } from "@/lib/ecpay";
@@ -127,6 +128,12 @@ export async function saveHours(_: FormState, data: FormData): Promise<FormState
   if (![15, 20, 30, 60].includes(interval)) return { error: "時段間隔不正確" };
   if (!(lead >= 0 && lead <= 10080)) return { error: "提前時間不正確" };
   if (!(advance >= 1 && advance <= 365)) return { error: "開放天數需介於 1–365" };
+  const buffer = int(data, "buffer_minutes");
+  const cutoff = int(data, "cancel_cutoff_minutes");
+  const noShow = int(data, "no_show_limit");
+  if (![0, 5, 10, 15, 20, 30].includes(buffer)) return { error: "整理時間不正確" };
+  if (!(cutoff >= 0 && cutoff <= 4320)) return { error: "取消期限不正確" };
+  if (![0, 2, 3, 5].includes(noShow)) return { error: "未到次數限制不正確" };
 
   tx(() => {
     for (const [wd, open, close, closed] of rows) {
@@ -140,7 +147,16 @@ export async function saveHours(_: FormState, data: FormData): Promise<FormState
         closed,
       );
     }
-    run("UPDATE businesses SET slot_interval = ?, min_lead_minutes = ?, max_advance_days = ? WHERE id = ?", interval, lead, advance, biz.id);
+    run(
+      "UPDATE businesses SET slot_interval = ?, min_lead_minutes = ?, max_advance_days = ?, buffer_minutes = ?, cancel_cutoff_minutes = ?, no_show_limit = ? WHERE id = ?",
+      interval,
+      lead,
+      advance,
+      buffer,
+      cutoff,
+      noShow,
+      biz.id,
+    );
   });
   return done();
 }
@@ -156,6 +172,26 @@ export async function addClosedDate(_: FormState, data: FormData): Promise<FormS
 export async function removeClosedDate(_: FormState, data: FormData): Promise<FormState> {
   const { biz } = await requireBusiness();
   run("DELETE FROM closed_dates WHERE business_id = ? AND date = ?", biz.id, str(data, "date"));
+  return done("");
+}
+
+// ── 保留時段（午休、私事、進貨：這段時間不開放線上預約） ──
+export async function addBlock(_: FormState, data: FormData): Promise<FormState> {
+  const { biz } = await requireBusiness();
+  const date = str(data, "date");
+  const start = parseTime(str(data, "start"));
+  const end = parseTime(str(data, "end"));
+  const staffId = int(data, "staff_id") || null;
+  if (!isDateStr(date) || start == null || end == null) return { error: "請填寫日期與時間" };
+  if (end <= start) return { error: "結束時間必須晚於開始時間" };
+  if (staffId && !get("SELECT 1 AS x FROM staff WHERE id = ? AND business_id = ?", staffId, biz.id)) return { error: "找不到這位人員" };
+  run("INSERT INTO blocks (business_id, staff_id, date, start_min, end_min, note) VALUES (?, ?, ?, ?, ?, ?)", biz.id, staffId, date, start, end, str(data, "note", 40));
+  return done("已保留，這段時間客人約不到");
+}
+
+export async function removeBlock(_: FormState, data: FormData): Promise<FormState> {
+  const { biz } = await requireBusiness();
+  run("DELETE FROM blocks WHERE id = ? AND business_id = ?", int(data, "id"), biz.id);
   return done("");
 }
 
@@ -197,7 +233,11 @@ export async function createManualBooking(_: FormState, data: FormData): Promise
     source: "manual",
   });
   if (!result.ok) return { error: result.error };
-  return done("已建立預約");
+  // 手動預約不受營業時間限制，但排在公休或營業時間外時提醒一下，免得是選錯上午下午
+  const b = result.booking;
+  const h = hoursOf(biz.id).get(weekdayOf(b.date));
+  const odd = !h || h.closed || isClosedDate(biz.id, b.date) ? "這天是公休日" : b.start_min < h.open || b.end_min > h.close ? "這個時間在營業時間之外" : "";
+  return done(odd ? `已建立預約。提醒：${odd}，請確認沒有選錯。` : "已建立預約");
 }
 
 export async function rescheduleBooking(_: FormState, data: FormData): Promise<FormState> {
@@ -242,6 +282,8 @@ export async function deleteCustomer(_: FormState, data: FormData): Promise<Form
   tx(() => {
     run("UPDATE customers SET name = '已刪除的顧客', phone = ?, email = '', note = '' WHERE id = ? AND business_id = ?", `deleted-${id}`, id, biz.id);
     run("UPDATE bookings SET note = '' WHERE customer_id = ? AND business_id = ?", id, biz.id);
+    // 寄信紀錄裡有這位顧客的信箱、姓名與預約內容，一併刪掉
+    run("DELETE FROM mail_log WHERE customer_id = ? AND business_id = ?", id, biz.id);
   });
   return done("");
 }
@@ -329,13 +371,17 @@ export async function changePlan(_: FormState, data: FormData): Promise<FormStat
 export async function deleteAccount(_: FormState, data: FormData): Promise<FormState> {
   const { biz, user } = await requireBusiness();
   if (user.email === DEMO_EMAIL) return { error: "示範帳號無法刪除" };
+  if (!hit(`pw:${user.id}`, 10, 600_000)) return { error: "嘗試次數過多，請 10 分鐘後再試" };
   if (!verifyPassword(String(data.get("password") ?? ""), user.password_hash)) return { error: "密碼不正確" };
   if (str(data, "confirm") !== biz.slug) return { error: `請輸入預約頁代稱「${biz.slug}」以確認` };
   if (biz.billing_provider && biz.plan !== "free" && !biz.cancel_at_period_end) {
     return { error: "你還有進行中的訂閱，請先到「方案與帳單」取消訂閱，再刪除帳號" };
   }
   // users → businesses → 服務、人員、顧客、預約 全部連帶刪除
-  run("DELETE FROM users WHERE id = ?", user.id);
+  tx(() => {
+    run("DELETE FROM mail_log WHERE business_id = ? OR recipient = ?", biz.id, user.email);
+    run("DELETE FROM users WHERE id = ?", user.id);
+  });
   await destroySession();
   redirect("/login?deleted=1");
 }

@@ -20,6 +20,7 @@ interface Row {
   plan: string;
   suspended: number;
   billing_provider: string | null;
+  referred_by: string;
   created_at: string;
   email: string;
   bookings30: number;
@@ -30,13 +31,23 @@ const mb = (n: number) => `${(n / 1048576).toFixed(n < 10485760 ? 2 : 1)} MB`;
 
 function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="panel p-4">
-      <p className="text-xs text-muted">{label}</p>
-      <p className="tnum mt-1 text-2xl font-bold">{value}</p>
-      {sub && <p className="mt-0.5 text-xs text-muted">{sub}</p>}
+    <div className="px-5 py-4">
+      <dt className="text-xs text-muted">{label}</dt>
+      <dd className="tnum mt-1 text-2xl font-bold">{value}</dd>
+      {sub && <dd className="mt-0.5 text-xs text-muted">{sub}</dd>}
     </div>
   );
 }
+
+/** 稽核紀錄的動作代碼對照成看得懂的文字 */
+const ACTIONS: Record<string, string> = {
+  suspend: "停權",
+  unsuspend: "解除停權",
+  "set-plan": "手動調整方案",
+  backup: "建立備份",
+  "backup-download": "下載備份",
+  "orphan-charge": "無方案扣款",
+};
 
 export default async function AdminPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   await requireAdmin();
@@ -44,7 +55,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   const like = `%${q.replace(/[%_]/g, "")}%`;
 
   const rows = all<Row>(
-    `SELECT b.id, b.name, b.slug, b.plan, b.suspended, b.billing_provider, b.created_at, u.email,
+    `SELECT b.id, b.name, b.slug, b.plan, b.suspended, b.billing_provider, b.referred_by, b.created_at, u.email,
             (SELECT COUNT(*) FROM bookings k WHERE k.business_id = b.id AND k.created_at >= datetime('now', '-30 days')) AS bookings30,
             (SELECT COUNT(*) FROM customers c WHERE c.business_id = b.id) AS customers
      FROM businesses b JOIN users u ON u.id = b.owner_id
@@ -100,12 +111,13 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
         </section>
       )}
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <h1 className="text-2xl">營運概況</h1>
+      <dl className="panel grid grid-cols-2 max-lg:[&>*:nth-child(-n+2)]:border-b max-lg:[&>*:nth-child(odd)]:border-r lg:grid-cols-4 lg:divide-x lg:divide-line [&>*]:border-line">
         <Stat label="每月經常性收入（MRR）" value={fmtMoney(mrr)} sub={`近 30 天實收 ${fmtMoney(collected)}`} />
         <Stat label="店家數" value={`${totals.shops}`} sub={`近 7 天新增 ${totals.week}`} />
         <Stat label="付費店家" value={`${totals.paid}`} sub={`付費轉換率 ${conversion}%`} />
         <Stat label="近 30 天有預約的店家" value={`${totals.active}`} sub={mailFails ? `近 7 天寄信失敗 ${mailFails} 封` : "寄信正常"} />
-      </div>
+      </dl>
 
       <section className="panel">
         <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
@@ -121,21 +133,22 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           {rows.map((r) => (
             <li key={r.id}>
               <details className="group">
-                <summary className="flex list-none flex-wrap items-center gap-x-5 gap-y-1 px-5 py-3">
-                  <span className="min-w-48 flex-1">
+                <summary className="grid list-none grid-cols-[1fr_auto] items-baseline gap-x-4 gap-y-0.5 px-5 py-3">
+                  <span className="min-w-0">
                     <span className="font-medium">{r.name}</span>
                     {r.suspended ? <span className="badge ml-2 bg-danger-soft text-danger">已停權</span> : null}
-                    <span className="block text-sm text-muted">
-                      /b/{r.slug}・{r.email}
-                    </span>
                   </span>
-                  <span className={`badge ${r.plan === "free" ? "bg-ink/8 text-muted" : "bg-brand-soft text-brand-dark"}`}>
+                  <span className={`text-right text-sm ${r.plan === "free" ? "text-muted" : "font-semibold text-brand"}`}>
                     {planOf(r.plan).name}
-                    {r.billing_provider ? `・${r.billing_provider}` : ""}
+                    {r.billing_provider ? `・${r.billing_provider === "ecpay" ? "綠界" : "Stripe"}` : ""}
                   </span>
-                  <span className="tnum w-28 text-right text-sm text-muted">30 天 {r.bookings30} 筆</span>
-                  <span className="tnum w-24 text-right text-sm text-muted">顧客 {r.customers}</span>
-                  <span className="tnum w-24 text-right text-sm text-muted">{r.created_at.slice(0, 10)}</span>
+                  <span className="min-w-0 truncate text-sm text-muted">
+                    /b/{r.slug}・{r.email}
+                    {r.referred_by && `・由 ${r.referred_by} 介紹`}
+                  </span>
+                  <span className="tnum text-right text-sm text-muted">
+                    30 天 {r.bookings30} 筆・顧客 {r.customers}・{r.created_at.slice(5, 10).replace("-", "/")}
+                  </span>
                 </summary>
                 <div className="flex flex-wrap items-end gap-6 border-t border-line bg-paper/60 px-5 py-4">
                   <ActionForm action={setPlanManually} submit="調整方案" submitClass="btn btn-ghost btn-sm" className="flex flex-wrap items-end gap-2">
@@ -183,7 +196,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
               {payments.map((p, i) => (
                 <li key={i} className="flex items-center justify-between gap-3 py-2">
                   <span className="min-w-0 truncate">
-                    {p.name}・{planOf(p.plan).name}・{p.provider}
+                    {p.name}・{planOf(p.plan).name}・{p.provider === "ecpay" ? "綠界" : p.provider}
                   </span>
                   <span className={`tnum font-semibold ${p.status === "paid" ? "" : "text-danger"}`}>
                     {p.status === "paid" ? fmtMoney(p.amount) : "扣款失敗"}
@@ -229,7 +242,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
             {audits.map((a, i) => (
               <li key={i} className="flex flex-wrap items-baseline gap-x-4 py-2">
                 <span className="tnum text-muted">{a.created_at.slice(0, 16)}</span>
-                <span className="font-medium">{a.action}</span>
+                <span className="font-medium">{ACTIONS[a.action] ?? a.action}</span>
                 <span className="min-w-0 flex-1 truncate text-muted">{a.detail}</span>
                 <span className="text-muted">{a.actor}</span>
               </li>

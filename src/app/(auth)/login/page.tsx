@@ -6,12 +6,14 @@ import { demoLogin, login } from "@/app/actions/auth";
 
 export const metadata = { title: "登入" };
 
-export default async function LoginPage({ searchParams }: { searchParams: Promise<{ deleted?: string }> }) {
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ deleted?: string; reset?: string }> }) {
   if (await currentUser()) redirect("/dashboard");
-  const deleted = (await searchParams).deleted === "1";
+  const sp = await searchParams;
+  const deleted = sp.deleted === "1";
   return (
     <>
       {deleted && <p role="status" className="mb-4 border border-ink/15 bg-paper p-3 text-sm">帳號與所有資料已刪除。謝謝你用過約好。</p>}
+      {sp.reset === "1" && <p role="status" className="mb-4 border border-ink/15 bg-brand-soft p-3 text-sm">密碼已更新。這個帳號開啟了兩步驟驗證，請用新密碼和驗證碼登入。</p>}
       <h1 className="text-2xl font-bold">登入後台</h1>
       <ActionForm action={login} className="mt-6 space-y-4" submit="登入" submitClass="btn btn-primary w-full py-3">
         <div>

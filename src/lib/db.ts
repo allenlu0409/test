@@ -181,6 +181,25 @@ const MIGRATIONS: string[] = [
    ALTER TABLE users ADD COLUMN totp_secret TEXT;
    ALTER TABLE users ADD COLUMN totp_enabled INTEGER NOT NULL DEFAULT 0;
    ALTER TABLE users ADD COLUMN totp_backup TEXT NOT NULL DEFAULT '[]';`,
+  `ALTER TABLE businesses ADD COLUMN buffer_minutes INTEGER NOT NULL DEFAULT 0;
+   ALTER TABLE businesses ADD COLUMN cancel_cutoff_minutes INTEGER NOT NULL DEFAULT 120;
+   ALTER TABLE businesses ADD COLUMN no_show_limit INTEGER NOT NULL DEFAULT 0;
+   ALTER TABLE businesses ADD COLUMN owner_digest_date TEXT NOT NULL DEFAULT '';
+   ALTER TABLE businesses ADD COLUMN referred_by TEXT NOT NULL DEFAULT '';
+   ALTER TABLE bookings ADD COLUMN over_quota INTEGER NOT NULL DEFAULT 0;
+   CREATE TABLE blocks (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     business_id INTEGER NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+     staff_id INTEGER REFERENCES staff(id) ON DELETE CASCADE,
+     date TEXT NOT NULL,
+     start_min INTEGER NOT NULL,
+     end_min INTEGER NOT NULL,
+     note TEXT NOT NULL DEFAULT ''
+   );
+   CREATE INDEX idx_blocks_biz_date ON blocks (business_id, date);
+   ALTER TABLE mail_log ADD COLUMN business_id INTEGER;
+   ALTER TABLE mail_log ADD COLUMN customer_id INTEGER;
+   ALTER TABLE users ADD COLUMN totp_last_step INTEGER NOT NULL DEFAULT 0;`,
 ];
 
 function migrate(conn: DatabaseSync): void {
@@ -250,6 +269,8 @@ export interface User {
   email_verified: number;
   totp_secret: string | null;
   totp_enabled: number;
+  /** 最後一次用掉的驗證碼屬於哪個時間格，同一個碼不能用第二次 */
+  totp_last_step: number;
   /** 備用碼的雜湊（JSON 陣列），每個只能用一次 */
   totp_backup: string;
 }
@@ -279,6 +300,15 @@ export interface Business {
   cancel_at_period_end: number;
   quota_notified: string;
   billing_cycle: "month" | "year";
+  /** 每筆預約前後保留的整理時間（分鐘），只影響線上預約 */
+  buffer_minutes: number;
+  /** 預約開始前幾分鐘內，客人不能再線上取消或改期 */
+  cancel_cutoff_minutes: number;
+  /** 同一支手機未到達幾次後不能再線上預約；0 = 不限制 */
+  no_show_limit: number;
+  owner_digest_date: string;
+  /** 從哪間店的預約頁介紹來的（店家代稱） */
+  referred_by: string;
   /** 新店家引導信寄到第幾封 */
   drip_stage: number;
   /** 店家關閉了引導與建議信 */
@@ -335,7 +365,20 @@ export interface Booking {
   token: string;
   source: "online" | "manual";
   reminded: number;
+  /** 免費額度用完之後收到的預約：照收，但顧客聯絡方式要升級後才顯示 */
+  over_quota: number;
   created_at: string;
+}
+
+export interface Block {
+  id: number;
+  business_id: number;
+  /** null = 全店（所有人員） */
+  staff_id: number | null;
+  date: string;
+  start_min: number;
+  end_min: number;
+  note: string;
 }
 
 export interface BookingRow extends Booking {

@@ -16,7 +16,7 @@ const STATUS: Record<string, { label: string; cls: string }> = {
   confirmed: { label: "已確認", cls: "text-brand bg-brand-soft" },
   completed: { label: "已完成", cls: "text-ink/70 bg-white" },
   cancelled: { label: "已取消", cls: "text-danger bg-white line-through" },
-  no_show: { label: "未到", cls: "text-[#6b4a00] bg-sun-soft" },
+  no_show: { label: "未到", cls: "text-note bg-sun-soft" },
 };
 
 export function StatusBadge({ status }: { status: string }) {

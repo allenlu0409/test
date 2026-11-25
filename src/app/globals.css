@@ -24,6 +24,7 @@
   --color-sun: #ffe45e; /* 螢光筆 */
   --color-sun-soft: #fff6c7;
   --color-seal: #c8372d; /* 印泥紅 */
+  --color-note: #6b4700; /* 螢光筆底上的提示文字 */
   --color-danger: #b3261e;
   --color-danger-soft: #fbe9e7;
 
@@ -46,7 +47,6 @@
     background: var(--color-paper);
     color: var(--color-ink);
     font-family: var(--font-sans);
-    font-feature-settings: "palt";
     line-height: 1.6;
   }
   h1,
@@ -98,7 +98,7 @@
     @apply px-3 py-1.5 text-[13px];
   }
   .input {
-    @apply w-full rounded-[3px] border border-ink/25 bg-white px-3 py-2.5 text-[15px] text-ink placeholder:text-muted/60 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20;
+    @apply w-full rounded-[3px] border border-ink/25 bg-white px-3 py-2.5 text-base text-ink placeholder:text-muted/60 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20;
   }
   .label {
     @apply mb-1.5 block text-sm font-medium text-ink;
@@ -119,6 +119,15 @@
   }
   .td {
     @apply px-4 py-3 text-sm;
+  }
+}
+
+/* 觸控裝置上，可點的東西至少 44px 高 */
+@media (pointer: coarse) {
+  .btn,
+  .btn-sm,
+  summary.btn {
+    min-height: 44px;
   }
 }
 

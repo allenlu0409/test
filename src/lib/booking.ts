@@ -1,6 +1,6 @@
 // 預約的資料存取與商業規則：可預約時段、額度、建立預約（含防重複預約）。
 import crypto from "node:crypto";
-import { all, get, run, tx, type Booking, type Business, type Service, type Staff } from "./db.ts";
+import { all, get, run, tx, type Block, type Booking, type Business, type Service, type Staff } from "./db.ts";
 import { computeSlots, overlaps, type Interval, type Slot } from "./slots.ts";
 import { addDays, diffDays, isDateStr, localMidnightUtc, nowInTz, weekdayOf, WEEKDAYS } from "./time.ts";
 import { planOf } from "./plans.ts";
@@ -49,19 +49,34 @@ export function eligibleStaff(bizId: number, serviceId: number, date?: string): 
   return activeStaff(bizId).filter((s) => !excluded.get(s.id)?.has(serviceId) && !offWeekdays(s).includes(wd));
 }
 
-/** excludeBookingId：改期時，這筆預約自己原本占的時間不算忙碌 */
-function busyMap(bizId: number, date: string, excludeBookingId = 0): Map<number, Interval[]> {
+interface BusyOptions {
+  /** 改期時，這筆預約自己原本占的時間不算忙碌 */
+  excludeBookingId?: number;
+  /** 每筆預約前後保留的整理時間 */
+  buffer?: number;
+  /** 把店家的「保留時段」也算進去；傳入全部人員 id，全店的保留時段才能套到每個人身上 */
+  blocksFor?: number[];
+}
+
+/**
+ * 各人員當天被占用的時間。線上預約會帶 buffer 與 blocksFor；
+ * 店家手動排預約時兩者都不帶（自己的保留時段和整理時間，自己可以破例）。
+ */
+function busyMap(bizId: number, date: string, opt: BusyOptions = {}): Map<number, Interval[]> {
+  const buffer = opt.buffer ?? 0;
   const rows = all<{ staff_id: number; start_min: number; end_min: number }>(
     "SELECT staff_id, start_min, end_min FROM bookings WHERE business_id = ? AND date = ? AND status IN ('confirmed','completed') AND id != ?",
     bizId,
     date,
-    excludeBookingId,
+    opt.excludeBookingId ?? 0,
   );
   const map = new Map<number, Interval[]>();
-  for (const r of rows) {
-    const list = map.get(r.staff_id) ?? [];
-    list.push([r.start_min, r.end_min]);
-    map.set(r.staff_id, list);
+  const add = (staffId: number, iv: Interval) => map.set(staffId, [...(map.get(staffId) ?? []), iv]);
+  for (const r of rows) add(r.staff_id, [r.start_min - buffer, r.end_min + buffer]);
+  if (opt.blocksFor) {
+    for (const k of all<Block>("SELECT * FROM blocks WHERE business_id = ? AND date = ?", bizId, date)) {
+      for (const id of k.staff_id ? [k.staff_id] : opt.blocksFor) add(id, [k.start_min, k.end_min]);
+    }
   }
   return map;
 }
@@ -79,7 +94,7 @@ export function availableSlots(biz: Business, service: Service, date: string, st
     hours: hoursOf(biz.id).get(weekdayOf(date)) ?? null,
     interval: biz.slot_interval,
     staffIds,
-    busy: busyMap(biz.id, date, excludeBookingId),
+    busy: busyMap(biz.id, date, { excludeBookingId, buffer: biz.buffer_minutes, blocksFor: staff }),
     now: nowInTz(biz.timezone),
     minLeadMinutes: biz.min_lead_minutes,
     maxAdvanceDays: biz.max_advance_days,
@@ -105,7 +120,8 @@ export function quotaReached(biz: Business): boolean {
 
 export function normalizePhone(raw: string): string | null {
   const p = raw.replace(/[\s\-()]/g, "");
-  return /^\+?\d{8,15}$/.test(p) ? p : null;
+  // 台灣手機 09 開頭 10 碼、市話 0 開頭 9–10 碼，或帶國碼的 +886…；擋掉 12345678 這種明顯亂填的
+  return /^(\+\d{9,15}|0\d{8,9})$/.test(p) ? p : null;
 }
 
 export interface CreateBookingInput {
@@ -126,7 +142,9 @@ export type CreateBookingResult = { ok: true; booking: Booking } | { ok: false; 
 export function createBooking(input: CreateBookingInput): CreateBookingResult {
   const { biz, source } = input;
   const name = input.name.trim().slice(0, 40);
-  const phone = normalizePhone(input.phone);
+  // 現場客可能沒留電話：店家手動建立時可留空，系統給一個內部代號
+  const walkIn = source === "manual" && !input.phone.trim();
+  const phone = walkIn ? `walkin-${crypto.randomBytes(6).toString("hex")}` : normalizePhone(input.phone);
   const email = (input.email ?? "").trim().slice(0, 120);
   const note = (input.note ?? "").trim().slice(0, 300);
 
@@ -150,7 +168,14 @@ export function createBooking(input: CreateBookingInput): CreateBookingResult {
 
       if (source === "online") {
         if (biz.suspended) return { ok: false, error: "這間店目前暫停線上預約" };
-        if (quotaReached(biz)) return { ok: false, error: "本月線上預約已額滿，請直接與店家聯繫" };
+        if (biz.no_show_limit > 0) {
+          const missed = get<{ n: number }>(
+            "SELECT COUNT(*) AS n FROM bookings b JOIN customers c ON c.id = b.customer_id WHERE b.business_id = ? AND c.phone = ? AND b.status = 'no_show'",
+            biz.id,
+            phone,
+          )!.n;
+          if (missed >= biz.no_show_limit) return { ok: false, error: "這支手機目前無法線上預約，請直接與店家聯繫" };
+        }
         const slot = availableSlots(biz, service, input.date, input.staffId).find((s) => s.start === input.start);
         if (!slot) return { ok: false, error: "這個時段剛剛被訂走了，請改選其他時段" };
         staffId = slot.staffIds[0];
@@ -179,10 +204,12 @@ export function createBooking(input: CreateBookingInput): CreateBookingResult {
         customerId = run("INSERT INTO customers (business_id, name, phone, email) VALUES (?, ?, ?, ?)", biz.id, name, phone, email).id;
       }
 
+      // 免費額度用完後照樣收預約（不讓店家在客人面前難看），但這筆的顧客聯絡方式要升級後才顯示
+      const overQuota = source === "online" && quotaReached(biz) ? 1 : 0;
       const token = crypto.randomBytes(18).toString("base64url");
       const { id } = run(
-        `INSERT INTO bookings (business_id, service_id, staff_id, customer_id, date, start_min, end_min, price, note, token, source)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO bookings (business_id, service_id, staff_id, customer_id, date, start_min, end_min, price, note, token, source, over_quota)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         biz.id,
         service.id,
         staffId,
@@ -194,6 +221,7 @@ export function createBooking(input: CreateBookingInput): CreateBookingResult {
         note,
         token,
         source,
+        overQuota,
       );
       return { ok: true, booking: get<Booking>("SELECT * FROM bookings WHERE id = ?", id)! };
     });
@@ -259,6 +287,18 @@ export function isUpcoming(b: Pick<Booking, "date" | "start_min">, timezone: str
   return diffDays(b.date, now.date) * 1440 + b.start_min - now.minutes > 0;
 }
 
+/** 客人現在還能不能自己取消或改期：預約必須是已確認，而且距離開始還超過店家設定的期限 */
+export function canSelfManage(b: Pick<Booking, "date" | "start_min" | "status">, biz: Pick<Business, "timezone" | "cancel_cutoff_minutes">): boolean {
+  if (b.status !== "confirmed") return false;
+  const now = nowInTz(biz.timezone);
+  return diffDays(b.date, now.date) * 1440 + b.start_min - now.minutes > biz.cancel_cutoff_minutes;
+}
+
+/** 顧客聯絡方式是否要遮住：免費方案下、額度用完後才收到的預約 */
+export function contactLocked(b: Pick<Booking, "over_quota">, biz: Pick<Business, "plan">): boolean {
+  return !!b.over_quota && Number.isFinite(planOf(biz.plan).monthlyBookings);
+}
+
 /**
  * 客人自己改期：只能改「已確認且還沒開始」的預約，新時段必須符合線上預約的所有規則。
  * 盡量維持原本的服務人員，原人員沒空才換人。
@@ -270,7 +310,7 @@ export function rescheduleByCustomer(token: string, date: string, start: number)
       const b = get<Booking>("SELECT * FROM bookings WHERE token = ?", token);
       if (!b) return { ok: false, error: "找不到這筆預約" };
       const biz = get<Business>("SELECT * FROM businesses WHERE id = ?", b.business_id)!;
-      if (b.status !== "confirmed" || !isUpcoming(b, biz.timezone)) return { ok: false, error: "這筆預約已無法線上改期，請直接聯繫店家" };
+      if (!canSelfManage(b, biz)) return { ok: false, error: "這筆預約已無法線上改期，請直接聯繫店家" };
       if (biz.suspended) return { ok: false, error: "這間店目前暫停線上預約，請直接聯繫店家" };
       if (b.date === date && b.start_min === start) return { ok: false, error: "這就是原本的時間，請選另一個時段" };
       const service = get<Service>("SELECT * FROM services WHERE id = ?", b.service_id)!;
@@ -284,4 +324,10 @@ export function rescheduleByCustomer(token: string, date: string, start: number)
     console.error("rescheduleByCustomer failed", e);
     return { ok: false, error: "系統忙碌中，請稍後再試" };
   }
+}
+
+/** 後台顯示顧客電話：現場客沒留電話、或額度外的預約尚未解鎖時，顯示說明文字而不是號碼 */
+export function displayPhone(phone: string, locked = false): string {
+  if (phone.startsWith("walkin-")) return "未留電話";
+  return locked ? "升級後顯示電話" : phone;
 }

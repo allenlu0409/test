@@ -59,7 +59,10 @@ export async function requireBusiness(): Promise<{ user: User; biz: Business }> 
   return { user, biz };
 }
 
-/** 對外網址：優先用 APP_URL，未設定時依請求的 Host 推得（反向代理後亦適用） */
+/**
+ * 對外網址（放進信件的連結用）。正式環境一律用 APP_URL：Host 標頭可由請求端偽造，
+ * 拿來組重設密碼連結會把 token 送到攻擊者的網域。沒設 APP_URL 只會出現在本機與預覽環境。
+ */
 export async function baseUrl(): Promise<string> {
   if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, "");
   const h = await headers();

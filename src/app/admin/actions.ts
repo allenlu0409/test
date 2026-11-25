@@ -17,7 +17,7 @@ export async function setSuspended(_: FormState, data: FormData): Promise<FormSt
   if (!biz) return { error: "找不到店家" };
   const next = biz.suspended ? 0 : 1;
   run("UPDATE businesses SET suspended = ? WHERE id = ?", next, biz.id);
-  audit(admin.email, next ? "suspend" : "unsuspend", `${biz.slug} ${str(data, "reason", 200)}`);
+  audit(admin.email, next ? "suspend" : "unsuspend", biz.slug);
   revalidatePath("/admin");
   return { ok: "" };
 }
@@ -42,7 +42,7 @@ export async function setPlanManually(_: FormState, data: FormData): Promise<For
 export async function backupNow(): Promise<FormState> {
   const admin = await requireAdmin();
   const file = backupDatabase(nowInTz("Asia/Taipei").date);
-  audit(admin.email, "backup", file ?? "today already exists");
+  audit(admin.email, "backup", file ? "已建立今天的備份" : "今天已經備份過");
   revalidatePath("/admin");
   return { ok: file ? "已建立今天的備份" : "今天已經備份過了" };
 }

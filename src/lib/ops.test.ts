@@ -7,7 +7,9 @@ process.env.ADMIN_EMAILS = "ops@example.com";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { all, get, run, type Business } from "./db.ts";
-import { base32Decode, base32Encode, newBackupCodes, newSecret, totpAt, useBackupCode, verifyTotp } from "./totp.ts";
+import { base32Decode, base32Encode, matchTotp, newBackupCodes, newSecret, totpAt, useBackupCode, verifyTotp } from "./totp.ts";
+import { devMailboxEnabled, unsafeConfig } from "./safety.ts";
+import { sendOwnerDigests, notifyBookingCreated } from "./notify.ts";
 import { collectAlerts, sendOperatorAlerts, sendWeeklyDigest } from "./alerts.ts";
 import { DRIP, sendDripEmails } from "./drip.ts";
 import { createBooking, rescheduleByCustomer, seedDefaultHours } from "./booking.ts";
@@ -122,6 +124,7 @@ test("客人自己改期：讓出原時段、不能改到被占用或不開放�
   const { biz, service } = makeBiz();
   const date = addDays(nowInTz("Asia/Taipei").date, 3);
   const book = (start: number, i: number) => createBooking({ biz, serviceId: service, staffId: null, date, start, source: "online", name: `客${i}`, phone: `09330000${10 + i}` });
+  run("UPDATE businesses SET cancel_cutoff_minutes = 0 WHERE id = ?", biz.id);
   const a = book(600, 1);
   const b = book(720, 2);
   assert.ok(a.ok && b.ok);
@@ -141,4 +144,50 @@ test("客人自己改期：讓出原時段、不能改到被占用或不開放�
 
   run("UPDATE bookings SET status = 'cancelled' WHERE id = ?", b.booking.id);
   assert.match((rescheduleByCustomer(b.booking.token, date, 900) as { error: string }).error, /無法線上改期/);
+});
+
+test("同一組驗證碼不能用第二次", () => {
+  const secret = base32Encode(Buffer.from("12345678901234567890"));
+  const at = 59_000;
+  const step = matchTotp(secret, "287082", at);
+  assert.equal(step, 1);
+  assert.equal(matchTotp(secret, "287082", at, step!), null, "記下用過的時間格後，同一組碼被拒絕");
+  assert.equal(matchTotp(secret, totpAt(secret, at + 30_000), at + 30_000, step!), 2, "下一組碼可以用");
+});
+
+test("預覽用的開關遇到真實金鑰就視為不安全", () => {
+  assert.deepEqual(unsafeConfig({ DEV_MAILBOX: "1", DEMO_BILLING: "1" }), [], "純預覽環境可以");
+  const bad = unsafeConfig({ RESEND_API_KEY: "re_x", DEV_MAILBOX: "1", ADMIN_REQUIRE_2FA: "off", INSECURE_COOKIES: "1" });
+  assert.equal(bad.length, 4, "三個開關，加上沒設 APP_URL");
+  assert.deepEqual(unsafeConfig({ ECPAY_MERCHANT_ID: "3002607", APP_URL: "https://x.example" }), []);
+  assert.equal(devMailboxEnabled({ DEV_MAILBOX: "1" }), true);
+  assert.equal(devMailboxEnabled({ DEV_MAILBOX: "1", STRIPE_SECRET_KEY: "sk" }), false);
+  assert.equal(devMailboxEnabled({}), false);
+});
+
+test("店家的明日摘要：晚上八點後寄一次；信箱未驗證的店家改收確認信提醒（一天一封）", async () => {
+  const verified = makeBiz();
+  const unverified = makeBiz();
+  run("UPDATE users SET email_verified = 0 WHERE id = ?", unverified.biz.owner_id);
+  const today = nowInTz("Asia/Taipei").date;
+  const tomorrow = addDays(today, 1);
+  const made = [verified, unverified].map((x, i) => createBooking({ biz: x.biz, serviceId: x.service, staffId: null, date: tomorrow, start: 1140, source: "online", name: "林小美", phone: `09440000${10 + i}` }));
+  assert.ok(made.every((m) => m.ok), JSON.stringify(made));
+
+  const before8 = new Date(`${today}T11:00:00Z`); // 台北 19:00
+  const after8 = new Date(`${today}T12:30:00Z`); // 台北 20:30
+  assert.equal(await sendOwnerDigests(before8), 0);
+  await sendOwnerDigests(after8);
+  await sendOwnerDigests(after8);
+  const digest = mails(verified.email).filter((m) => m.subject.startsWith("明天有"));
+  assert.equal(digest.length, 1, "一天一封");
+  assert.match(digest[0].body, /19:00　林小美/);
+  assert.equal(mails(unverified.email).length, 0, "預約內容不寄到沒驗證的信箱");
+
+  for (const m of made) await notifyBookingCreated((m as { booking: { id: number } }).booking.id);
+  await notifyBookingCreated((made[1] as { booking: { id: number } }).booking.id);
+  const nudges = mails(unverified.email);
+  assert.equal(nudges.length, 1, "提醒確認信箱，一天最多一封");
+  assert.match(nudges[0].subject, /確認信箱/);
+  assert.doesNotMatch(nudges[0].body, /林小美/, "不含顧客資料");
 });

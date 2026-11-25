@@ -11,7 +11,7 @@ export interface PlanDef {
   removeBranding: boolean;
   csvExport: boolean;
   analytics: boolean;
-  /** 預約前一天自動寄 Email 提醒顧客 */
+  /** 預約前一天自動寄 Email 提醒顧客（目前所有方案都有；保留這個開關方便之後調整） */
   reminders: boolean;
   features: string[];
 }
@@ -27,8 +27,8 @@ export const PLANS: Record<Plan, PlanDef> = {
     removeBranding: false,
     csvExport: false,
     analytics: false,
-    reminders: false,
-    features: ["專屬預約頁面", "1 位服務人員", "每月 30 筆線上預約", "新預約 Email 通知", "顧客名單與行事曆"],
+    reminders: true,
+    features: ["專屬預約頁面", "1 位服務人員", "每月 30 筆線上預約", "預約通知與前一天的 Email 提醒", "顧客名單與行事曆"],
   },
   pro: {
     id: "pro",
@@ -41,7 +41,7 @@ export const PLANS: Record<Plan, PlanDef> = {
     csvExport: true,
     analytics: true,
     reminders: true,
-    features: ["線上預約不限筆數", "最多 5 位服務人員", "預約前一天自動提醒顧客", "移除「約好」品牌標示", "營收與爽約率分析", "顧客名單匯出 CSV", "自訂品牌色"],
+    features: ["線上預約不限筆數", "最多 5 位服務人員", "移除「約好」品牌標示", "營收與爽約率分析", "顧客名單匯出 CSV", "自訂品牌色"],
   },
   business: {
     id: "business",

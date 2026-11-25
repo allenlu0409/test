@@ -41,7 +41,11 @@ async function main() {
     await p.waitForTimeout(300);
     const body = sql("SELECT body FROM mail_log WHERE recipient = ? AND subject LIKE '歡迎%' ORDER BY id DESC", email)[0].body;
     await p.goto(body.match(/http\S+\/verify\/[\w-]+/)[0].replace(/^https?:\/\/[^/]+/, B));
-    return (await p.locator("h1").innerText()).includes("確認好了");
+    // 打開連結本身不會生效（防止郵件掃描器代為驗證），要本人登入後按下按鈕
+    if (sql("SELECT email_verified FROM users WHERE email = ?", email)[0].email_verified !== 0) return false;
+    await p.click('button:has-text("確認這是我的信箱")');
+    await p.waitForSelector("text=信箱確認好了");
+    return sql("SELECT email_verified FROM users WHERE email = ?", email)[0].email_verified === 1;
   };
 
   console.log("\n# 首頁與示範店家");
@@ -49,7 +53,7 @@ async function main() {
   await d.goto(B);
   check("首頁標題", (await d.locator("h1").innerText()).includes("客人自己約"));
   await shot(d, "landing");
-  await d.click("text=先看示範店家的後台");
+  await d.click("text=直接看示範店家的後台");
   await d.waitForURL("**/dashboard");
   for (const p of ["bookings", "calendar", "customers", "services", "staff", "hours", "settings", "billing", "help"]) {
     await d.goto(`${B}/dashboard/${p}`);
@@ -118,6 +122,10 @@ async function main() {
   await days.nth(2).click();
   await m.locator("button.tnum.rounded-lg").nth(2).click();
   await m.fill("#bk-name", "林小美");
+  await m.goBack();
+  check("按瀏覽器返回鍵是回上一步，不是離開頁面", m.url().includes("/b/yun-nail") && (await m.locator("text=日期").count()) >= 1);
+  await m.locator("button.tnum.rounded-lg").nth(2).click();
+  check("返回再前進後，已填的姓名還在", (await m.inputValue("#bk-name")) === "林小美");
   await m.fill("#bk-phone", "0955-666-777");
   await m.fill("#bk-email", "mei@example.com");
   await m.click('button:has-text("修改") >> nth=1');
@@ -133,6 +141,8 @@ async function main() {
   await m.waitForTimeout(600);
   const mails = sql("SELECT recipient FROM mail_log ORDER BY id").map((r) => r.recipient);
   check("新預約通知店家與客人", mails.includes("yun@example.com") && mails.includes("mei@example.com"), JSON.stringify(mails));
+  check("確認頁可傳到 LINE 與加入 Google 日曆", (await m.locator('a[href^="https://line.me/R/share"]').count()) === 1 && (await m.locator('a[href^="https://calendar.google.com"]').count()) === 1);
+  check("付費店的確認頁不放約好的推廣連結", (await m.locator('a[href^="/?ref="]').count()) === 0);
   const overflow = await m.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   check("手機版無橫向捲動", overflow <= 0, String(overflow));
 
@@ -146,6 +156,17 @@ async function main() {
   await u.click('button:has-text("確認改期")');
   await u.waitForSelector("text=已改期");
   check("改期成功", sql("SELECT start_min FROM bookings ORDER BY id DESC LIMIT 1")[0].start_min === 960);
+  // 保留時段：那段時間客人約不到
+  await u.goto(`${B}/dashboard/bookings`);
+  await u.click("summary:has-text('保留時段')");
+  await u.fill("#bl-date", booked.date);
+  await u.fill("#bl-start", "17:00");
+  await u.fill("#bl-end", "19:00");
+  await u.click('button:has-text("保留這段時間")');
+  await u.waitForSelector("text=已保留");
+  const svcId = sql("SELECT s.id FROM services s JOIN businesses b ON b.id = s.business_id WHERE b.slug = 'yun-nail' ORDER BY s.id LIMIT 1")[0].id;
+  const blocked = await (await fetch(`${B}/api/slots?slug=yun-nail&service=${svcId}&date=${booked.date}`)).json();
+  check("保留時段內沒有可約的時間", !blocked.slots.includes(1020) && !blocked.slots.includes(1080) && blocked.slots.includes(1140), JSON.stringify(blocked.slots));
   // 手動預約撞期
   await u.goto(`${B}/dashboard/bookings?new=1`);
   const fill = async () => {
@@ -176,7 +197,7 @@ async function main() {
   // 客人取消 → 通知店家
   await m.goto(manageUrl);
   await m.click('button:has-text("取消預約")');
-  await m.click('button:has-text("確定要取消嗎")');
+  await m.click('button:has-text("再按一次確定取消")');
   await m.waitForSelector("text=已取消");
   await m.waitForTimeout(500);
   check("客人取消會通知店家", sql("SELECT subject FROM mail_log ORDER BY id DESC LIMIT 1")[0].subject.startsWith("預約取消"));
@@ -228,6 +249,7 @@ async function main() {
   await verifyEmail(a, ADMIN);
   await a.goto(`${B}/admin`);
   check("管理者要先開兩步驟驗證", a.url().includes("need2fa=1") && (await a.locator("text=進入營運後台前").count()) === 1);
+  await a.fill("#totp-on-pw", "password123");
   await a.click('button:has-text("開始設定")');
   await a.waitForSelector("#totp-code");
   const secret = sql("SELECT totp_secret FROM users WHERE email = ?", ADMIN)[0].totp_secret;
@@ -248,7 +270,13 @@ async function main() {
   await a.waitForSelector("p[role=alert]");
   check("開啟後只有密碼不能登入", (await alertText(a)).includes("兩步驟驗證"));
   await a.click("summary:has-text('我有開啟兩步驟驗證')");
+  // 剛剛啟用時用掉的那組驗證碼不能再用一次
   await a.fill("#code", totp(secret));
+  await a.click('button:has-text("登入")');
+  await a.waitForFunction(() => document.querySelector("p[role=alert]")?.textContent?.includes("驗證碼不正確"));
+  check("用過的驗證碼不能重放", true);
+  // 驗證器換到下一組之後就能登入（伺服器容許前後各一格）
+  await a.fill("#code", totp(secret, Date.now() + 30_000));
   await a.click('button:has-text("登入")');
   await a.waitForURL("**/dashboard");
   await a.goto(`${B}/admin`);
@@ -285,6 +313,8 @@ async function main() {
   check("排程端點未設密鑰時關閉", (await d.request.post(`${B}/api/cron/reminders`)).status() === 503);
   check("Stripe webhook 未設密鑰時關閉", (await d.request.post(`${B}/api/stripe/webhook`, { data: "{}" })).status() === 503);
   const h = (await d.request.get(B)).headers();
+  check("分享預覽圖與主畫面設定", (await d.request.get(`${B}/opengraph-image.png`)).status() === 200 && (await d.request.get(`${B}/b/demo/opengraph-image.png`)).status() === 200 && (await d.request.get(`${B}/manifest.webmanifest`)).status() === 200);
+  check("信件檢視頁在一般環境不存在", (await d.request.get(`${B}/dev/mail`)).status() === 404);
   check("安全標頭", !!h["content-security-policy"] && !!h["strict-transport-security"] && h["x-content-type-options"] === "nosniff");
   let limited = false;
   for (let i = 0; i < 2500 && !limited; i += 50) {

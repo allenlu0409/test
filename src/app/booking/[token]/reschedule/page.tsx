@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { after } from "next/server";
 import { get, BOOKING_JOIN, type BookingRow, type Business } from "@/lib/db";
-import { bookableDays, isUpcoming, rescheduleByCustomer } from "@/lib/booking";
+import { bookableDays, canSelfManage, rescheduleByCustomer } from "@/lib/booking";
 import { hitByIp } from "@/lib/client-ip";
 import { brandVars } from "@/lib/color";
 import { notifyRescheduled } from "@/lib/notify";
@@ -28,7 +28,7 @@ export default async function ReschedulePage({ params }: { params: Promise<{ tok
   const b = get<BookingRow>(`${BOOKING_JOIN} WHERE b.token = ?`, token);
   if (!b) notFound();
   const biz = get<Business>("SELECT * FROM businesses WHERE id = ?", b.business_id)!;
-  if (b.status !== "confirmed" || !isUpcoming(b, biz.timezone)) redirect(`/booking/${token}`);
+  if (!canSelfManage(b, biz)) redirect(`/booking/${token}`);
 
   return (
     <main style={brandVars(biz.brand_color, planOf(biz.plan).removeBranding) as React.CSSProperties} className="mx-auto max-w-lg px-4 py-10 sm:py-16">

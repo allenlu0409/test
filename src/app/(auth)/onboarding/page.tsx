@@ -49,12 +49,13 @@ export default async function OnboardingPage() {
               name="slug"
               required
               pattern="[a-z0-9][a-z0-9\-]{1,28}[a-z0-9]"
+              title="3–30 個小寫英文、數字或連字號，不能以連字號開頭或結尾"
               placeholder="mumu-hair"
               autoCapitalize="none"
               className="w-full px-3 py-2.5 text-[15px] focus:outline-none"
             />
           </div>
-          <p className="hint">3–30 個小寫英文、數字或連字號。這是客人會看到的網址。</p>
+          <p className="hint">3–30 個小寫英文、數字或連字號，例如店名的英文拼音。這是客人會看到的網址，<strong className="font-semibold text-ink">開好之後不能更改</strong>，請確認沒有打錯。</p>
         </div>
       </ActionForm>
     </>

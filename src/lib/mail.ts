@@ -6,6 +6,9 @@ export interface Mail {
   to: string;
   subject: string;
   text: string;
+  /** 這封信提到哪間店、哪位顧客的資料；刪除帳號或顧客個資時要一併刪掉紀錄 */
+  businessId?: number;
+  customerId?: number;
 }
 
 export function mailEnabled(): boolean {
@@ -39,7 +42,15 @@ export async function sendMail(mail: Mail): Promise<boolean> {
     console.log(`[mail] → ${mail.to}｜${mail.subject}\n${mail.text}\n`);
   }
   try {
-    run("INSERT INTO mail_log (recipient, subject, body, status) VALUES (?, ?, ?, ?)", mail.to, mail.subject, mailEnabled() ? "" : mail.text, status);
+    run(
+      "INSERT INTO mail_log (recipient, subject, body, status, business_id, customer_id) VALUES (?, ?, ?, ?, ?, ?)",
+      mail.to,
+      mail.subject,
+      mailEnabled() ? "" : mail.text,
+      status,
+      mail.businessId ?? null,
+      mail.customerId ?? null,
+    );
     run("DELETE FROM mail_log WHERE created_at < datetime('now', '-30 days')");
   } catch (e) {
     console.error("mail_log failed", e);

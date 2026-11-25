@@ -8,6 +8,8 @@ services:
     env_file: .env
     environment:
       DATABASE_PATH: /data/yuehao.db
+      # 前面有 Caddy：相信它填的 X-Forwarded-For，限流才看得到真實 IP
+      TRUST_PROXY: "1"
     volumes:
       - data:/data
     expose:

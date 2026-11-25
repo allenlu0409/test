@@ -80,6 +80,48 @@ export default async function HoursPage() {
             <input id="max_advance_days" name="max_advance_days" type="number" min={1} max={365} required defaultValue={biz.max_advance_days} className="input" />
             <p className="hint">客人最遠可以約到幾天後。</p>
           </div>
+          <div>
+            <label className="label" htmlFor="buffer_minutes">
+              每筆預約之間保留
+            </label>
+            <select id="buffer_minutes" name="buffer_minutes" defaultValue={biz.buffer_minutes} className="input">
+              <option value={0}>不保留</option>
+              <option value={5}>5 分鐘</option>
+              <option value={10}>10 分鐘</option>
+              <option value={15}>15 分鐘</option>
+              <option value={20}>20 分鐘</option>
+              <option value={30}>30 分鐘</option>
+            </select>
+            <p className="hint">留一點時間整理、消毒或喘口氣。只影響客人線上能約的時段。</p>
+          </div>
+          <div>
+            <label className="label" htmlFor="cancel_cutoff_minutes">
+              客人可以自己取消或改期到
+            </label>
+            <select id="cancel_cutoff_minutes" name="cancel_cutoff_minutes" defaultValue={biz.cancel_cutoff_minutes} className="input">
+              <option value={0}>預約開始前都可以</option>
+              <option value={60}>開始前 1 小時</option>
+              <option value={120}>開始前 2 小時</option>
+              <option value={180}>開始前 3 小時</option>
+              <option value={360}>開始前 6 小時</option>
+              <option value={720}>開始前 12 小時</option>
+              <option value={1440}>開始前 1 天</option>
+              <option value={2880}>開始前 2 天</option>
+            </select>
+            <p className="hint">超過期限後，客人會被引導直接聯繫你。</p>
+          </div>
+          <div>
+            <label className="label" htmlFor="no_show_limit">
+              未到的客人
+            </label>
+            <select id="no_show_limit" name="no_show_limit" defaultValue={biz.no_show_limit} className="input">
+              <option value={0}>不限制</option>
+              <option value={2}>未到 2 次後不能線上預約</option>
+              <option value={3}>未到 3 次後不能線上預約</option>
+              <option value={5}>未到 5 次後不能線上預約</option>
+            </select>
+            <p className="hint">以手機號碼計算。被擋下的客人會看到「請直接與店家聯繫」。</p>
+          </div>
         </section>
       </ActionForm>
 

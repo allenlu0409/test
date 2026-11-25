@@ -3,8 +3,10 @@ import { CopyButton } from "@/components/form";
 import { StatusBadge } from "@/components/brand";
 import { baseUrl, requireBusiness } from "@/lib/auth";
 import { all, get, BOOKING_JOIN, type BookingRow } from "@/lib/db";
-import { monthlyOnlineCount } from "@/lib/booking";
-import { planOf } from "@/lib/plans";
+import { contactLocked, displayPhone, monthlyOnlineCount } from "@/lib/booking";
+import { ActionForm } from "@/components/form";
+import { setBookingStatus } from "./actions";
+import { CATEGORY_TEMPLATES, planOf } from "@/lib/plans";
 import { addDays, localMidnightUtc, fmtDateLong, fmtMoney, fmtTime, nowInTz, weekdayOf, WEEKDAYS } from "@/lib/time";
 
 function Kpi({ label, value, sub }: { label: string; value: string; sub?: string }) {
@@ -110,12 +112,26 @@ export default async function Overview({ searchParams }: { searchParams: Promise
     "SELECT COUNT(*) AS bookings, COUNT(CASE WHEN source = 'online' THEN 1 END) AS online FROM bookings WHERE business_id = ?",
     biz.id,
   )!;
+  const template = (CATEGORY_TEMPLATES[biz.category] ?? []).map((t) => `${t.name}|${t.duration}|${t.price}`).sort().join();
+  const mine = all<{ name: string; duration_min: number; price: number }>("SELECT name, duration_min, price FROM services WHERE business_id = ? AND archived = 0", biz.id)
+    .map((x) => `${x.name}|${x.duration_min}|${x.price}`)
+    .sort()
+    .join();
+  const servicesEdited = mine !== template;
+  // 「自己約一筆測試」算在 totals.bookings 裡：店家用自己的手機走一次，才知道客人會看到什麼
   const steps: [done: boolean, label: string, href: string, cta: string][] = [
     [true, "開好預約頁", `/b/${biz.slug}`, "看看"],
+    [servicesEdited, "把預設的服務、價格和時長改成你自己的", "/dashboard/services", "去確認"],
     [!!(biz.description || biz.address || biz.phone), "補上店家介紹、地址與電話，讓客人放心預約", "/dashboard/settings", "去填寫"],
-    [topServices.length > 0 || totals.bookings > 0, "確認服務項目的時長與價格", "/dashboard/services", "去確認"],
-    [totals.online > 0, "把連結貼到 IG 或 LINE，收到第一筆線上預約", "/dashboard/settings", "複製連結"],
+    [totals.bookings > 0, "用自己的手機約一筆試試，看客人會看到什麼", `/b/${biz.slug}`, "去試約"],
+    [totals.online > 1, "把連結貼到 IG 或 LINE，收到第一筆客人的預約", "/dashboard/settings", "複製連結"],
   ];
+  const tomorrow = addDays(today, 1);
+  const tomorrows = all<BookingRow>(`${BOOKING_JOIN} WHERE b.business_id = ? AND b.date = ? AND b.status = 'confirmed' ORDER BY b.start_min`, biz.id, tomorrow);
+  // 過了日期卻還沒按「完成」或「未到」的預約：不結案，營收和未到率就不準
+  const overdue = get<{ n: number }>("SELECT COUNT(*) AS n FROM bookings WHERE business_id = ? AND date < ? AND status = 'confirmed'", biz.id, today)!.n;
+  const reminderText = (b: BookingRow) =>
+    `${b.customer_name} 你好，提醒你明天 ${fmtTime(b.start_min)} 在${biz.name}有預約（${b.service_name}）。需要改時間或取消，請點這裡：${publicUrl.replace(`/b/${biz.slug}`, "")}/booking/${b.token}`;
   const showSteps = totals.online === 0;
 
   const used = monthlyOnlineCount(biz);
@@ -175,14 +191,25 @@ export default async function Overview({ searchParams }: { searchParams: Promise
 
       {nearQuota && (
         <div className="flex flex-wrap items-center justify-between gap-3 border border-ink/15 bg-sun-soft p-4">
-          <p className="text-sm text-[#6b4700]">
+          <p className="text-sm text-note">
             <strong>
               本月線上預約已用 {used} / {limit} 筆。
             </strong>
-            {used >= limit ? "額度已滿，客人目前無法線上預約。" : "額滿後客人將無法線上預約。"}
+            {used >= limit ? "客人還是可以照常預約，但新預約的顧客電話要升級後才看得到。" : "超過之後客人仍可預約，但新預約的顧客電話要升級後才看得到。"}
           </p>
           <Link href="/dashboard/billing" className="btn btn-dark btn-sm">
             升級為不限筆數
+          </Link>
+        </div>
+      )}
+
+      {overdue > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 border border-ink/15 bg-white p-4 text-sm">
+          <p>
+            <strong>有 {overdue} 筆過去的預約還沒結案。</strong>按「完成」或「未到」，營收和未到率才會準。
+          </p>
+          <Link href="/dashboard/bookings?tab=past" className="btn btn-ghost btn-sm">
+            去結案
           </Link>
         </div>
       )}
@@ -198,19 +225,32 @@ export default async function Overview({ searchParams }: { searchParams: Promise
         <section className="panel p-5">
           <h2 className="font-bold">今天的預約</h2>
           {todays.length === 0 ? (
-            <p className="mt-4 text-sm text-muted">今天沒有預約。把預約連結分享出去，讓客人自己約。</p>
+            <p className="mt-3 text-sm text-muted">今天沒有預約。</p>
           ) : (
             <ul className="mt-3 divide-y divide-line">
               {todays.map((b) => (
-                <li key={b.id} className="flex items-center gap-3 py-2.5">
+                <li key={b.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 py-2.5">
                   <span className="tnum w-12 text-sm font-semibold">{fmtTime(b.start_min)}</span>
-                  <div className="min-w-0 flex-1">
+                  <div className="min-w-32 flex-1">
                     <p className="truncate text-sm font-medium">
                       {b.customer_name}・{b.service_name}
                     </p>
-                    <p className="text-xs text-muted">{b.staff_name}</p>
+                    <p className="text-xs text-muted">
+                      {b.staff_name}・<span className="tnum">{displayPhone(b.customer_phone, contactLocked(b, biz))}</span>
+                    </p>
                   </div>
-                  <StatusBadge status={b.status} />
+                  {b.status === "confirmed" ? (
+                    <span className="flex gap-2">
+                      {(["completed", "no_show"] as const).map((st) => (
+                        <ActionForm key={st} action={setBookingStatus} submit={st === "completed" ? "完成" : "未到"} submitClass={`btn btn-sm ${st === "completed" ? "btn-primary" : "btn-ghost"}`}>
+                          <input type="hidden" name="id" value={b.id} />
+                          <input type="hidden" name="status" value={st} />
+                        </ActionForm>
+                      ))}
+                    </span>
+                  ) : (
+                    <StatusBadge status={b.status} />
+                  )}
                 </li>
               ))}
             </ul>
@@ -242,6 +282,26 @@ export default async function Overview({ searchParams }: { searchParams: Promise
           )}
         </section>
       </div>
+
+      {tomorrows.length > 0 && (
+        <section className="panel p-5">
+          <h2 className="font-bold">
+            明天的預約 <span className="tnum ml-1 text-sm font-normal text-muted">{tomorrows.length} 筆</span>
+          </h2>
+          <p className="mt-1 text-sm text-muted">有留 Email 的客人會自動收到提醒信。想用 LINE 再提醒一次，按「複製提醒」貼給客人就好。</p>
+          <ul className="mt-3 divide-y divide-line">
+            {tomorrows.map((b) => (
+              <li key={b.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 py-2.5">
+                <span className="tnum w-12 text-sm font-semibold">{fmtTime(b.start_min)}</span>
+                <p className="min-w-32 flex-1 truncate text-sm">
+                  <span className="font-medium">{b.customer_name}</span>・{b.service_name}・{b.staff_name}
+                </p>
+                <CopyButton text={reminderText(b)} label="複製提醒" />
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section className="panel relative overflow-hidden p-5">
         <h2 className="font-bold">近 14 天已完成營收</h2>

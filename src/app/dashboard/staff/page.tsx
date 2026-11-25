@@ -85,7 +85,7 @@ export default async function StaffPage() {
         <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-sun-soft p-5">
           <div>
             <h2 className="font-bold">想再加一位夥伴？</h2>
-            <p className="mt-1 text-sm text-[#6b4700]">
+            <p className="mt-1 text-sm text-note">
               {plan.name}最多 {plan.maxStaff} 位服務人員。升級後每位夥伴都有獨立行程，客人可以指定設計師。
             </p>
           </div>

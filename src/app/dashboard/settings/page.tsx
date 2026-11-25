@@ -79,7 +79,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         </div>
         <div className="sm:col-span-2">
           <label className="label" htmlFor="brand_color">
-            品牌色 {!plan.removeBranding && <span className="badge ml-1 bg-sun-soft text-[#8a5a00]">專業版</span>}
+            品牌色 {!plan.removeBranding && <span className="badge ml-1 bg-sun-soft text-note">專業版</span>}
           </label>
           <div className="flex items-center gap-3">
             <input id="brand_color" name="brand_color" type="color" defaultValue={biz.brand_color} disabled={!plan.removeBranding} className="h-10 w-16 rounded-lg border border-line bg-white p-1 disabled:opacity-50" />
@@ -135,7 +135,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           <h2 className="font-bold">
             兩步驟驗證 {user.totp_enabled ? <span className="badge ml-1 bg-brand-soft text-brand">已啟用</span> : null}
           </h2>
-          {need2fa && !user.totp_enabled && <p className="mt-2 border border-ink/15 bg-sun-soft p-3 text-sm text-[#6b4700]">進入營運後台前，請先開啟兩步驟驗證。</p>}
+          {need2fa && !user.totp_enabled && <p className="mt-2 border border-ink/15 bg-sun-soft p-3 text-sm text-note">進入營運後台前，請先開啟兩步驟驗證。</p>}
           <p className="mt-1 text-sm text-muted">登入時除了密碼，還要輸入手機驗證器 App（Google Authenticator、1Password 等）上的 6 位數驗證碼。密碼外洩時，別人也進不來。</p>
           {user.totp_enabled ? (
             <ActionForm action={disableTotp} resetOnOk submit="關閉兩步驟驗證" submitClass="btn btn-ghost self-end" confirmText="確定關閉？" className="mt-4 flex flex-wrap items-end gap-3">
@@ -166,7 +166,14 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
               </div>
             </div>
           ) : (
-            <ActionForm action={startTotp} submit="開始設定" submitClass="btn btn-ghost mt-4" />
+            <ActionForm action={startTotp} submit="開始設定" submitClass="btn btn-ghost self-end" className="mt-4 flex flex-wrap items-end gap-3">
+              <div className="min-w-40 flex-1 sm:max-w-xs">
+                <label className="label" htmlFor="totp-on-pw">
+                  輸入密碼以開始設定
+                </label>
+                <input id="totp-on-pw" name="password" type="password" autoComplete="current-password" required className="input" />
+              </div>
+            </ActionForm>
           )}
         </section>
       )}

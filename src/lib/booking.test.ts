@@ -6,7 +6,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import { all, get, run, type Business } from "./db.ts";
-import { availableSlots, conflictsWithOthers, createBooking, monthlyOnlineCount, seedDefaultHours, quotaReached } from "./booking.ts";
+import { availableSlots, canSelfManage, conflictsWithOthers, contactLocked, createBooking, displayPhone, monthlyOnlineCount, seedDefaultHours, quotaReached } from "./booking.ts";
 import { sendDueReminders, notifyBookingCreated } from "./notify.ts";
 import { verifyWebhook } from "./stripe.ts";
 import { addDays, localMidnightUtc, nowInTz, weekdayOf } from "./time.ts";
@@ -29,7 +29,7 @@ function openDay(offset = 3): string {
   return d;
 }
 
-const who = (i: number) => ({ name: `客人${i}`, phone: `09110000${String(i).padStart(2, "0")}` });
+const who = (i: number) => ({ name: `客人${i}`, phone: `09${String(10000000 + i)}` });
 
 test("同一時段、單一人員：只有第一筆成功", () => {
   const { biz, service } = makeBiz();
@@ -77,7 +77,7 @@ test("公休日、過去的日期、別家店的服務與人員都不能約", ()
   assert.equal(all("SELECT id FROM bookings WHERE business_id = ?", a.biz.id).length, 0);
 });
 
-test("免費版每月 30 筆線上預約額滿後拒絕；手動預約不受限；升級後解除", () => {
+test("免費額度用完後照收預約但遮住顧客電話；手動預約不算額度；升級後解鎖", () => {
   const { biz, service, staff } = makeBiz();
   const customer = run("INSERT INTO customers (business_id, name, phone) VALUES (?, 'x', '0900000000')", biz.id).id;
   for (let i = 0; i < 30; i++) {
@@ -91,10 +91,15 @@ test("免費版每月 30 筆線上預約額滿後拒絕；手動預約不受限�
   run("UPDATE bookings SET status = 'no_show' WHERE business_id = ? AND status = 'cancelled'", biz.id);
   assert.equal(quotaReached(biz), true);
   const date = openDay();
+  // 額度用完後照樣收預約（預約頁不關），但這筆標記為額度外：免費方案下顧客電話要升級後才顯示
   const online = createBooking({ biz, serviceId: service, staffId: null, date, start: 600, source: "online", ...who(1) });
-  assert.equal(online.ok, false);
-  assert.match((online as { error: string }).error, /額滿/);
-  assert.ok(createBooking({ biz, serviceId: service, staffId: null, date, start: 600, source: "manual", ...who(1) }).ok);
+  assert.ok(online.ok);
+  assert.equal(online.booking.over_quota, 1);
+  assert.equal(contactLocked(online.booking, biz), true);
+  assert.equal(contactLocked(online.booking, { plan: "pro" }), false, "升級後立刻解鎖");
+  assert.equal(displayPhone("0912345678", true), "升級後顯示電話");
+  const manual = createBooking({ biz, serviceId: service, staffId: null, date, start: 720, source: "manual", ...who(2) });
+  assert.ok(manual.ok && manual.booking.over_quota === 0, "手動預約不算額度");
   assert.equal(quotaReached({ ...biz, plan: "pro" }), false);
 });
 
@@ -113,7 +118,7 @@ test("同一支手機視為同一位顧客；輸入驗證", () => {
   assert.equal(createBooking({ ...base, start: 615, name: "A", phone: "0912345678" }).ok, false, "不在時段格線上的時間");
 });
 
-test("通知：新預約寄給店家與顧客；提醒只有付費方案、只寄一次", async () => {
+test("通知：新預約寄給店家與顧客；前一天提醒所有方案都寄、只寄一次", async () => {
   const mails = () => all<{ recipient: string; subject: string }>("SELECT recipient, subject FROM mail_log ORDER BY id");
   run("DELETE FROM mail_log");
   const pro = makeBiz("pro");
@@ -134,9 +139,9 @@ test("通知：新預約寄給店家與顧客；提醒只有付費方案、只�
   const noon = new Date(`${nowInTz("Asia/Taipei", now).date}T04:00:00Z`); // 台北中午 12 點
   const early = new Date(`${nowInTz("Asia/Taipei", now).date}T00:00:00Z`); // 台北早上 8 點
   assert.equal(await sendDueReminders(early), 0, "早上 9 點前不寄");
-  assert.equal(await sendDueReminders(noon), 1, "只有專業版那一筆");
+  assert.equal(await sendDueReminders(noon), 2, "免費版與專業版都寄");
   assert.equal(await sendDueReminders(noon), 0, "不重寄");
-  assert.equal(mails()[0].recipient, "c0@example.com");
+  assert.deepEqual(mails().map((m) => m.recipient).sort(), ["c0@example.com", "c1@example.com"]);
   assert.match(mails()[0].subject, /明天見/);
 });
 
@@ -281,7 +286,7 @@ test("額度通知：八成與額滿各寄一次；沒驗證信箱的店家不�
   assert.equal(await notifyQuota(biz.id), "full");
   assert.equal(await notifyQuota(biz.id), null);
   assert.equal(subjects().length, 2);
-  assert.match(subjects()[1], /額度已滿/);
+  assert.match(subjects()[1], /額度用完/);
 
   await notifyBilling(biz.id, "failed", 499);
   assert.match(subjects()[2], /扣款失敗/);
@@ -311,4 +316,46 @@ test("待終止佇列：失敗會保留並重試，成功才移除；到期降�
   run("UPDATE businesses SET ecpay_trade_no = 'DONE', cancel_at_period_end = 1 WHERE id = ?", cancelled);
   expireOverdue(now);
   assert.deepEqual(pendingEcpayCancels().map((c) => c.trade_no), ["LAPSED"], "已由店家取消的不用再終止");
+});
+
+test("整理時間與保留時段只影響線上預約；店家手動仍可排", async () => {
+  const { biz, service, staff } = makeBiz();
+  const date = openDay();
+  run("UPDATE businesses SET buffer_minutes = 30 WHERE id = ?", biz.id);
+  const buffered = get<Business>("SELECT * FROM businesses WHERE id = ?", biz.id)!;
+  const svc = get<never>("SELECT * FROM services WHERE id = ?", service)!;
+  assert.ok(createBooking({ biz: buffered, serviceId: service, staffId: null, date, start: 720, source: "online", ...who(1) }).ok); // 12:00–13:00
+  const starts = () => availableSlots(buffered, svc, date, null).map((x) => x.start);
+  assert.ok(!starts().includes(780), "13:00 緊接著，沒有留整理時間");
+  assert.ok(starts().includes(810), "13:30 開始剛好隔 30 分鐘");
+  assert.ok(!starts().includes(660) && starts().includes(630), "前面也要留：11:30 結束的可以，12:00 結束的不行");
+
+  run("INSERT INTO blocks (business_id, staff_id, date, start_min, end_min, note) VALUES (?, NULL, ?, 900, 1020, '進貨')", biz.id, date); // 15:00–17:00 全店
+  assert.ok(!starts().includes(900) && !starts().includes(960) && starts().includes(1020));
+  assert.equal(createBooking({ biz: buffered, serviceId: service, staffId: null, date, start: 900, source: "online", ...who(2) }).ok, false);
+  assert.ok(createBooking({ biz: buffered, serviceId: service, staffId: staff[0], date, start: 900, source: "manual", ...who(3) }).ok, "店家自己可以破例");
+});
+
+test("取消期限、未到次數限制、現場客不留電話", () => {
+  const { biz, service } = makeBiz();
+  const today = nowInTz("Asia/Taipei");
+  const soon = { date: today.date, start_min: today.minutes + 90, status: "confirmed" as const };
+  assert.equal(canSelfManage(soon, { timezone: "Asia/Taipei", cancel_cutoff_minutes: 120 }), false, "只剩 90 分鐘，超過 2 小時的期限");
+  assert.equal(canSelfManage(soon, { timezone: "Asia/Taipei", cancel_cutoff_minutes: 60 }), true);
+  assert.equal(canSelfManage({ ...soon, status: "cancelled" }, { timezone: "Asia/Taipei", cancel_cutoff_minutes: 0 }), false);
+
+  const date = openDay();
+  const first = createBooking({ biz, serviceId: service, staffId: null, date, start: 600, source: "online", ...who(7) });
+  assert.ok(first.ok);
+  run("UPDATE bookings SET status = 'no_show' WHERE id = ?", first.booking.id);
+  const strict = { ...biz, no_show_limit: 1 };
+  assert.match((createBooking({ biz: strict, serviceId: service, staffId: null, date, start: 720, source: "online", ...who(7) }) as { error: string }).error, /無法線上預約/);
+  assert.ok(createBooking({ biz: strict, serviceId: service, staffId: null, date, start: 720, source: "online", ...who(8) }).ok, "別的客人不受影響");
+  assert.ok(createBooking({ biz, serviceId: service, staffId: null, date, start: 840, source: "online", ...who(7) }).ok, "沒設限制的店照常");
+
+  const walkIn = createBooking({ biz, serviceId: service, staffId: null, date, start: 960, source: "manual", name: "現場客", phone: "" });
+  assert.ok(walkIn.ok);
+  assert.equal(displayPhone(get<{ phone: string }>("SELECT phone FROM customers WHERE id = ?", walkIn.booking.customer_id)!.phone), "未留電話");
+  assert.equal(createBooking({ biz, serviceId: service, staffId: null, date, start: 1080, source: "online", name: "A", phone: "" }).ok, false, "線上預約一定要電話");
+  assert.equal(createBooking({ biz, serviceId: service, staffId: null, date, start: 1080, source: "online", name: "A", phone: "12345678" }).ok, false, "亂填的號碼");
 });

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<title>分享預覽圖（1200×630）</title>
+<link rel="stylesheet" href="video/base.css">
+<link rel="stylesheet" href="video/reel.css">
+<style>
+  /* 連結貼到 LINE、IG、FB 時顯示的預覽圖。?v=shop 產生店家預約頁用的版本。
+     產生方式見 marketing/README.md。 */
+  html, body { width: 1200px; height: 630px; background: #fff; }
+  #stage { width: 1200px; height: 630px; }
+  .wrap { position: absolute; inset: 0; padding: 64px 72px; --rule: 70px; --margin: 0px; }
+  .ttl { font-size: 92px; line-height: 1.18; margin-top: 34px; }
+  .sub { margin-top: 26px; font-size: 34px; color: var(--muted); }
+  .book { left: auto; right: 64px; top: 78px; width: 440px; }
+  .book .head { padding: 16px 24px; font-size: 30px; border-bottom-width: 4px; }
+  .book .row { height: 74px; font-size: 30px; }
+  .book .row time { width: 118px; padding-left: 24px; font-size: 25px; }
+  .book .row .txt { margin-left: 22px; }
+  .stamp { animation: none; transform: rotate(-7deg); }
+  .hl { animation: none; background-size: 100% 100%; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="wrap" id="home">
+    <span class="seal" style="font-size:64px">約好</span>
+    <h1 class="ttl serif">客人自己<span class="hl">約好</span><br>你專心服務</h1>
+    <p class="sub">美甲、美睫、美髮的線上預約本<br>一個人的店免費用</p>
+    <div class="book">
+      <div class="head serif"><span>星期六</span><small>Mia</small></div>
+      <div class="row"><time>13:00</time><span class="txt">洗剪　陳小姐</span></div>
+      <div class="row"><time>14:00</time><span class="txt"><span class="hl" style="font-weight:700">設計染髮　林小姐</span></span></div>
+      <div class="row"><time>15:00</time><span class="txt">　〃</span></div>
+      <div class="row"><time>16:00</time><span class="txt"></span></div>
+      <div class="row"><time>17:00</time><span class="txt">頭皮養護　吳小姐</span></div>
+    </div>
+    <div class="abs" style="right:92px; top:330px"><span class="stamp" style="font-size:64px">約好</span></div>
+  </div>
+  <div class="wrap" id="shop" hidden>
+    <p style="font-size:34px; color:var(--brand); font-weight:700">線上預約</p>
+    <h1 class="ttl serif" style="font-size:104px; margin-top:20px">選服務、選時間，<br>自己<span class="hl">約好</span></h1>
+    <p class="sub">不用下載 App，不用註冊會員</p>
+    <div class="abs" style="right:96px; bottom:84px"><span class="stamp" style="font-size:96px">約好了</span></div>
+    <p class="abs" style="left:72px; bottom:56px; font-size:26px; color:var(--muted)"><span class="seal" style="font-size:26px; margin-right:14px">約好</span>提供預約服務</p>
+  </div>
+</div>
+<script>
+  if (new URLSearchParams(location.search).get("v") === "shop") { document.getElementById("home").hidden = true; document.getElementById("shop").hidden = false; }
+</script>
+</body>
+</html>

@@ -51,13 +51,13 @@ export function DayStrip({ days, date, onPick }: { days: Day[]; date: string | n
             aria-pressed={on}
             aria-label={`${d.month} 月 ${d.day} 日 週${d.wd}${d.off ? " 公休" : ""}`}
             onClick={() => onPick(d.date)}
-            className={`tnum w-14 shrink-0 rounded-xl border py-2 text-center ${
+            className={`tnum w-14 shrink-0 rounded-xl border py-2.5 text-center ${
               on ? "border-(--bc) bg-(--bc) text-(--bt)" : d.off ? "border-transparent text-muted/40" : "border-line hover:border-(--bc)"
             }`}
           >
-            <span className="block text-[11px] opacity-80">{head ? `${d.month}月` : `週${d.wd}`}</span>
+            <span className="block text-xs opacity-80">{head ? `${d.month}月` : `週${d.wd}`}</span>
             <span className="block text-lg font-bold leading-tight">{d.day}</span>
-            <span className="block text-[10px] opacity-70">{d.off ? "休" : head ? `週${d.wd}` : " "}</span>
+            <span className="block text-[11px] opacity-70">{d.off ? "休" : head ? `週${d.wd}` : " "}</span>
           </button>
         );
       })}
@@ -88,7 +88,7 @@ export function SlotGrid({ slots, failed, start, onPick }: { slots: number[] | n
                     type="button"
                     aria-pressed={start === s}
                     onClick={() => onPick(s)}
-                    className={`tnum rounded-lg border py-2 text-sm font-semibold ${start === s ? "border-(--bc) bg-(--bc) text-(--bt)" : "border-line hover:border-(--bc)"}`}
+                    className={`tnum min-h-11 rounded-lg border text-sm font-semibold ${start === s ? "border-(--bc) bg-(--bc) text-(--bt)" : "border-line hover:border-(--bc)"}`}
                   >
                     {fmtSlot(s)}
                   </button>

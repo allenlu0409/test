@@ -33,14 +33,23 @@ export function totpAt(secret: string, atMs: number, step = 30): string {
   return String(code % 1_000_000).padStart(6, "0");
 }
 
-/** 容許前後各一個時間格（手機時鐘稍微不準也能過） */
-export function verifyTotp(secret: string, code: string, atMs = Date.now()): boolean {
+/**
+ * 驗證並回傳這組碼所屬的時間格編號（不符回傳 null）。容許前後各一格，手機時鐘稍微不準也能過。
+ * 呼叫端要記下用掉的時間格、拒絕小於等於它的，同一組碼才不能被重放。
+ */
+export function matchTotp(secret: string, code: string, atMs = Date.now(), afterStep = 0): number | null {
   const given = code.replace(/\s/g, "");
-  if (!/^\d{6}$/.test(given)) return false;
-  return [-1, 0, 1].some((w) => {
-    const want = totpAt(secret, atMs + w * 30_000);
-    return crypto.timingSafeEqual(Buffer.from(want), Buffer.from(given));
-  });
+  if (!/^\d{6}$/.test(given)) return null;
+  const current = Math.floor(atMs / 30_000);
+  for (const step of [current - 1, current, current + 1]) {
+    if (step <= afterStep) continue;
+    if (crypto.timingSafeEqual(Buffer.from(totpAt(secret, step * 30_000)), Buffer.from(given))) return step;
+  }
+  return null;
+}
+
+export function verifyTotp(secret: string, code: string, atMs = Date.now()): boolean {
+  return matchTotp(secret, code, atMs) !== null;
 }
 
 export function otpauthUri(secret: string, account: string, issuer = "約好 Yuehao"): string {

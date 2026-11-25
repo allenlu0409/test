@@ -13,7 +13,7 @@ export async function GET() {
             COALESCE(SUM(CASE WHEN b.status = 'completed' THEN b.price END), 0) AS spent,
             COALESCE(MAX(CASE WHEN b.status = 'completed' THEN b.date END), '') AS last_visit
      FROM customers c LEFT JOIN bookings b ON b.customer_id = c.id
-     WHERE c.business_id = ? AND c.phone NOT LIKE 'deleted-%' GROUP BY c.id ORDER BY c.id`,
+     WHERE c.business_id = ? AND c.phone NOT LIKE 'deleted-%' AND c.phone NOT LIKE 'walkin-%' GROUP BY c.id ORDER BY c.id`,
     biz.id,
   );
   return csvResponse(
